@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restaurante — Estoque</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>body { background: #f8f9fa; }</style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand" href="/index.html"><i class="bi bi-shop"></i> Restaurante</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="/index.html"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="/ingredientes.html"><i class="bi bi-basket2"></i> Ingredientes</a></li>
+        <li class="nav-item"><a class="nav-link" href="/preparacoes.html"><i class="bi bi-journal-richtext"></i> Preparações</a></li>
+        <li class="nav-item"><a class="nav-link" href="/vendas.html"><i class="bi bi-cart3"></i> Vendas</a></li>
+        <li class="nav-item"><a class="nav-link active" href="/estoque.html"><i class="bi bi-box-seam"></i> Estoque</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <h4 class="fw-bold mb-4"><i class="bi bi-box-seam"></i> Controle de Estoque</h4>
+
+  <div class="row g-4">
+    <!-- Posição atual -->
+    <div class="col-md-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          Posição Atual
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="show-alerts" onchange="renderStock()">
+            <label class="form-check-label small" for="show-alerts">Apenas alertas</label>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-dark">
+                <tr><th>Ingrediente</th><th>Estoque atual</th><th>Mínimo</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody id="stock-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Movimentações recentes -->
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Últimas Movimentações</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr><th>Data/Hora</th><th>Ingrediente</th><th>Tipo</th><th>Quantidade</th><th>Observação</th></tr>
+              </thead>
+              <tbody id="mov-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Entrada manual -->
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold"><i class="bi bi-plus-circle"></i> Entrada de Estoque</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Ingrediente *</label>
+            <select class="form-select" id="entry-ing"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Quantidade *</label>
+            <input type="number" class="form-control" id="entry-qty" min="0.001" step="0.001" placeholder="ex: 5">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Observação</label>
+            <input type="text" class="form-control" id="entry-notes" placeholder="ex: Compra mercado, NF 001">
+          </div>
+          <button class="btn btn-success w-100" onclick="addEntry()">
+            <i class="bi bi-plus-lg"></i> Dar Entrada
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+let ingredients = [];
+
+async function load() {
+    [ingredients] = await Promise.all([api.getIngredients()]);
+    renderStock();
+    renderEntry();
+    loadMovements();
+}
+
+function renderStock() {
+    const onlyAlerts = document.getElementById('show-alerts').checked;
+    const list = onlyAlerts ? ingredients.filter(i => i.is_low_stock) : ingredients;
+    const tbody = document.getElementById('stock-body');
+    if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-${onlyAlerts ? 'success' : 'muted'} py-3">${onlyAlerts ? '<i class="bi bi-check-circle"></i> Estoque OK — nenhum alerta' : 'Nenhum ingrediente cadastrado'}</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = list.map(i => `
+        <tr class="${i.is_low_stock ? 'table-danger' : ''}">
+          <td class="fw-semibold">${i.name}</td>
+          <td>${num(i.stock_quantity)} ${i.unit}</td>
+          <td>${num(i.min_stock)} ${i.unit}</td>
+          <td>${i.is_low_stock
+              ? `<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Baixo (−${num(i.min_stock - i.stock_quantity)} ${i.unit})</span>`
+              : '<span class="badge bg-success">OK</span>'}</td>
+          <td><button class="btn btn-sm btn-outline-success" onclick="quickEntry(${i.id})"><i class="bi bi-plus"></i></button></td>
+        </tr>`).join('');
+}
+
+function renderEntry() {
+    const sel = document.getElementById('entry-ing');
+    sel.innerHTML = ingredients.map(i => `<option value="${i.id}">${i.name} (${i.unit}) — atual: ${num(i.stock_quantity)}</option>`).join('');
+}
+
+async function loadMovements() {
+    const movements = await api.getMovementsAll();
+    const tbody = document.getElementById('mov-body');
+    if (!movements.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Nenhuma movimentação</td></tr>';
+        return;
+    }
+    tbody.innerHTML = movements.map(m => `
+        <tr>
+          <td class="small">${new Date(m.date).toLocaleString('pt-BR')}</td>
+          <td>${m.ingredient_name}</td>
+          <td><span class="badge ${m.movement_type === 'in' ? 'bg-success' : 'bg-danger'}">
+            ${m.movement_type === 'in' ? '<i class="bi bi-arrow-down-circle"></i> Entrada' : '<i class="bi bi-arrow-up-circle"></i> Saída'}
+          </span></td>
+          <td>${m.movement_type === 'out' ? '−' : '+'}${num(m.quantity)}</td>
+          <td class="small text-muted">${m.notes || '—'}</td>
+        </tr>`).join('');
+}
+
+function quickEntry(id) {
+    document.getElementById('entry-ing').value = id;
+    document.getElementById('entry-qty').focus();
+}
+
+async function addEntry() {
+    const ingId = parseInt(document.getElementById('entry-ing').value);
+    const qty = parseFloat(document.getElementById('entry-qty').value);
+    const notes = document.getElementById('entry-notes').value.trim();
+    if (!ingId) { showToast('Selecione o ingrediente', 'error'); return; }
+    if (!qty || qty <= 0) { showToast('Informe a quantidade', 'error'); return; }
+    try {
+        await api.addStock(ingId, { ingredient_id: ingId, quantity: qty, notes: notes || null });
+        showToast('Estoque atualizado');
+        document.getElementById('entry-qty').value = '';
+        document.getElementById('entry-notes').value = '';
+        [ingredients] = await Promise.all([api.getIngredients()]);
+        renderStock();
+        renderEntry();
+        loadMovements();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+load();
+</script>
+</body>
+</html>

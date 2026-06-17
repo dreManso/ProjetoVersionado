@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restaurante — Preparações</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background: #f8f9fa; }
+  #comp-table td, #comp-table th { font-size: .9rem; }
+  .type-badge-ing { background:#0d6efd; }
+  .type-badge-sub { background:#6f42c1; }
+</style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand" href="/index.html"><i class="bi bi-shop"></i> Restaurante</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="/index.html"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="/ingredientes.html"><i class="bi bi-basket2"></i> Ingredientes</a></li>
+        <li class="nav-item"><a class="nav-link active" href="/preparacoes.html"><i class="bi bi-journal-richtext"></i> Preparações</a></li>
+        <li class="nav-item"><a class="nav-link" href="/vendas.html"><i class="bi bi-cart3"></i> Vendas</a></li>
+        <li class="nav-item"><a class="nav-link" href="/estoque.html"><i class="bi bi-box-seam"></i> Estoque</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="fw-bold mb-0"><i class="bi bi-journal-richtext"></i> Preparações</h4>
+    <button class="btn btn-primary" onclick="openCreate()"><i class="bi bi-plus-lg"></i> Nova Preparação</button>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Nome</th><th>Rendimento</th><th>Custo total</th>
+              <th>Custo/unid.</th><th>Preço venda</th><th>Margem</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Principal: Criar / Editar Preparação -->
+<div class="modal fade" id="modalDish" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dishModalTitle">Nova Preparação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="dish-id">
+        <div class="row g-3">
+          <!-- Coluna esquerda: dados básicos -->
+          <div class="col-md-5">
+            <h6 class="fw-bold border-bottom pb-2">Informações Básicas</h6>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nome *</label>
+              <input type="text" class="form-control" id="dish-name" placeholder="ex: Molho de Tomate, Frango Grelhado">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Descrição</label>
+              <textarea class="form-control" id="dish-desc" rows="2" placeholder="Descrição opcional"></textarea>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label fw-semibold">Rendimento</label>
+                <input type="number" class="form-control" id="dish-yield-qty" min="0.001" step="0.001"
+                  placeholder="ex: 1.2">
+                <div class="form-text text-warning">Definido após preparar a receita</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label fw-semibold">Unidade do rendimento</label>
+                <select class="form-select" id="dish-yield-unit">
+                  <option value="">—</option>
+                  <option value="L">L</option>
+                  <option value="mL">mL</option>
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="un">un (porção)</option>
+                  <option value="dose">dose</option>
+                  <option value="fatia">fatia</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Preço de venda (R$)</label>
+              <input type="number" class="form-control" id="dish-price" min="0" step="0.01" placeholder="0,00">
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="dish-sellable" checked>
+              <label class="form-check-label" for="dish-sellable">Pode ser vendido diretamente</label>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Modo de preparo</label>
+              <textarea class="form-control" id="dish-steps" rows="4" placeholder="Passo a passo da receita..."></textarea>
+            </div>
+
+            <!-- Custo calculado -->
+            <div class="card border-primary">
+              <div class="card-body py-2">
+                <div class="small fw-bold text-primary mb-1">Custo calculado</div>
+                <div id="cost-preview" class="small text-muted">Adicione componentes para calcular</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Coluna direita: componentes -->
+          <div class="col-md-7">
+            <h6 class="fw-bold border-bottom pb-2">Componentes da Receita</h6>
+
+            <div class="d-flex gap-2 mb-3">
+              <button class="btn btn-sm btn-outline-primary" onclick="openAddIng()">
+                <i class="bi bi-basket2"></i> + Ingrediente bruto
+              </button>
+              <button class="btn btn-sm btn-outline-purple" style="border-color:#6f42c1;color:#6f42c1" onclick="openAddSub()">
+                <i class="bi bi-journal-text"></i> + Sub-preparação
+              </button>
+            </div>
+
+            <table class="table table-sm table-bordered" id="comp-table">
+              <thead class="table-light">
+                <tr><th>Tipo</th><th>Nome</th><th>Qtd</th><th>Unid.</th><th></th></tr>
+              </thead>
+              <tbody id="comp-tbody">
+                <tr id="comp-empty"><td colspan="5" class="text-center text-muted py-2">Nenhum componente adicionado</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveDish()"><i class="bi bi-check-lg"></i> Salvar Preparação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Adicionar Ingrediente bruto ao componente -->
+<div class="modal fade" id="modalAddIng" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Adicionar Ingrediente</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Ingrediente</label>
+          <select class="form-select" id="add-ing-id"></select>
+        </div>
+        <div class="row g-2">
+          <div class="col-7">
+            <label class="form-label">Quantidade</label>
+            <input type="number" class="form-control" id="add-ing-qty" min="0.001" step="0.001">
+          </div>
+          <div class="col-5">
+            <label class="form-label">Unidade</label>
+            <select class="form-select" id="add-ing-unit">
+              <option value="kg">kg</option><option value="g">g</option>
+              <option value="L">L</option><option value="mL">mL</option>
+              <option value="un">un</option><option value="dose">dose</option>
+              <option value="cx">cx</option><option value="colher">colher</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="confirmAddIng()">Adicionar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Adicionar Sub-preparação -->
+<div class="modal fade" id="modalAddSub" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Adicionar Sub-preparação</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Preparação</label>
+          <select class="form-select" id="add-sub-id"></select>
+        </div>
+        <div class="row g-2">
+          <div class="col-7">
+            <label class="form-label">Quantidade necessária</label>
+            <input type="number" class="form-control" id="add-sub-qty" min="0.001" step="0.001">
+          </div>
+          <div class="col-5">
+            <label class="form-label">Unidade</label>
+            <select class="form-select" id="add-sub-unit">
+              <option value="L">L</option><option value="mL">mL</option>
+              <option value="kg">kg</option><option value="g">g</option>
+              <option value="un">un</option><option value="dose">dose</option>
+              <option value="colher">colher</option><option value="fatia">fatia</option>
+            </select>
+          </div>
+        </div>
+        <div class="alert alert-warning mt-2 mb-0 small">
+          <i class="bi bi-info-circle"></i> O custo será proporcional ao rendimento da sub-preparação.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="confirmAddSub()">Adicionar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ver custo detalhado -->
+<div class="modal fade" id="modalCost" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title" id="cost-title">Custo Detalhado</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="cost-body"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+let dishes = [], ingredients = [];
+let currentComponents = [];  // [{type, ingredient_id, sub_dish_id, quantity, unit, name}]
+let editingDishId = null;
+
+const modalDish   = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDish'));
+const modalAddIng = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAddIng'));
+const modalAddSub = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAddSub'));
+const modalCost   = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCost'));
+
+async function load() {
+    [dishes, ingredients] = await Promise.all([api.getDishes(), api.getIngredients()]);
+    renderTable();
+}
+
+function renderTable() {
+    const tbody = document.getElementById('tbody');
+    if (!dishes.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Nenhuma preparação cadastrada</td></tr>';
+        return;
+    }
+    tbody.innerHTML = dishes.map(d => `
+        <tr>
+          <td class="fw-semibold">${d.name}${d.is_sellable ? '' : ' <span class="badge bg-secondary">subproduto</span>'}</td>
+          <td>${d.yield_quantity ? num(d.yield_quantity) + ' ' + (d.yield_unit||'') : '<span class="text-warning small">não definido</span>'}</td>
+          <td>${brl(d.total_cost)}</td>
+          <td>${d.cost_per_yield_unit != null ? brl(d.cost_per_yield_unit)+'/'+(d.yield_unit||'un') : '—'}</td>
+          <td>${brl(d.selling_price)}</td>
+          <td>${d.margin_percent != null ? pct(d.margin_percent) : '—'}</td>
+          <td><span class="badge ${d.is_cost_complete ? 'bg-success' : 'bg-warning text-dark'}">${d.is_cost_complete ? 'Completo' : 'Incompleto'}</span></td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-info me-1" title="Ver custo" onclick="viewCost(${d.id})"><i class="bi bi-calculator"></i></button>
+            <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="openEdit(${d.id})"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-outline-danger" title="Excluir" onclick="remove(${d.id}, '${d.name.replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>`).join('');
+}
+
+function openCreate() {
+    editingDishId = null;
+    currentComponents = [];
+    document.getElementById('dishModalTitle').textContent = 'Nova Preparação';
+    document.getElementById('dish-id').value = '';
+    document.getElementById('dish-name').value = '';
+    document.getElementById('dish-desc').value = '';
+    document.getElementById('dish-yield-qty').value = '';
+    document.getElementById('dish-yield-unit').value = '';
+    document.getElementById('dish-price').value = '';
+    document.getElementById('dish-sellable').checked = true;
+    document.getElementById('dish-steps').value = '';
+    renderComponents();
+    modalDish().show();
+}
+
+function openEdit(id) {
+    const d = dishes.find(x => x.id === id);
+    editingDishId = id;
+    document.getElementById('dishModalTitle').textContent = 'Editar: ' + d.name;
+    document.getElementById('dish-id').value = id;
+    document.getElementById('dish-name').value = d.name;
+    document.getElementById('dish-desc').value = d.description || '';
+    document.getElementById('dish-yield-qty').value = d.yield_quantity || '';
+    document.getElementById('dish-yield-unit').value = d.yield_unit || '';
+    document.getElementById('dish-price').value = d.selling_price || '';
+    document.getElementById('dish-sellable').checked = d.is_sellable;
+    document.getElementById('dish-steps').value = d.preparation_steps || '';
+    currentComponents = d.components.map(c => ({
+        type: c.ingredient_id ? 'ingredient' : 'sub_dish',
+        ingredient_id: c.ingredient_id || null,
+        sub_dish_id: c.sub_dish_id || null,
+        quantity: c.quantity,
+        unit: c.unit,
+        name: c.ingredient_name || c.sub_dish_name || '—',
+    }));
+    renderComponents();
+    modalDish().show();
+}
+
+function renderComponents() {
+    const tbody = document.getElementById('comp-tbody');
+    if (!currentComponents.length) {
+        tbody.innerHTML = '<tr id="comp-empty"><td colspan="5" class="text-center text-muted py-2">Nenhum componente adicionado</td></tr>';
+        updateCostPreview();
+        return;
+    }
+    tbody.innerHTML = currentComponents.map((c, i) => `
+        <tr>
+          <td><span class="badge ${c.type === 'ingredient' ? 'type-badge-ing' : 'type-badge-sub'}">
+            ${c.type === 'ingredient' ? '<i class="bi bi-basket2"></i> Ingrediente' : '<i class="bi bi-journal-text"></i> Sub-prep'}
+          </span></td>
+          <td>${c.name}</td>
+          <td>${num(c.quantity)}</td>
+          <td>${c.unit}</td>
+          <td><button class="btn btn-sm btn-outline-danger py-0" onclick="removeComp(${i})"><i class="bi bi-x"></i></button></td>
+        </tr>`).join('');
+    updateCostPreview();
+}
+
+function removeComp(i) {
+    currentComponents.splice(i, 1);
+    renderComponents();
+}
+
+function updateCostPreview() {
+    const el = document.getElementById('cost-preview');
+    const yieldQty = parseFloat(document.getElementById('dish-yield-qty').value);
+    const yieldUnit = document.getElementById('dish-yield-unit').value;
+    const price = parseFloat(document.getElementById('dish-price').value);
+
+    if (!currentComponents.length) {
+        el.innerHTML = 'Adicione componentes para calcular';
+        return;
+    }
+
+    // Custo estimado apenas com ingredientes brutos (sub-preparações precisam do backend)
+    let partialCost = 0;
+    let hasSubDish = false;
+    for (const c of currentComponents) {
+        if (c.type === 'ingredient') {
+            const ing = ingredients.find(i => i.id === c.ingredient_id);
+            if (ing) partialCost += ing.cost_per_unit * c.quantity;
+        } else {
+            hasSubDish = true;
+        }
+    }
+
+    let html = `<div>Custo estimado: <strong>${brl(partialCost)}</strong>${hasSubDish ? ' <span class="text-warning">(+sub-preps)</span>' : ''}</div>`;
+    if (yieldQty && yieldQty > 0 && !hasSubDish) {
+        const perUnit = partialCost / yieldQty;
+        html += `<div>Por ${yieldUnit || 'unid.'}: <strong>${brl(perUnit)}</strong></div>`;
+        if (price > 0) {
+            const margin = (price - partialCost) / price * 100;
+            html += `<div>Margem: <strong class="${margin < 0 ? 'text-danger' : 'text-success'}">${pct(margin)}</strong></div>`;
+        }
+    }
+    if (hasSubDish) html += `<div class="text-muted small">Salve para calcular custo completo com sub-preparações.</div>`;
+    el.innerHTML = html;
+}
+
+document.getElementById('dish-yield-qty').addEventListener('input', updateCostPreview);
+document.getElementById('dish-price').addEventListener('input', updateCostPreview);
+
+function openAddIng() {
+    const sel = document.getElementById('add-ing-id');
+    sel.innerHTML = ingredients.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+    document.getElementById('add-ing-qty').value = '';
+    modalAddIng().show();
+}
+
+function confirmAddIng() {
+    const sel = document.getElementById('add-ing-id');
+    const id = parseInt(sel.value);
+    const ing = ingredients.find(i => i.id === id);
+    const qty = parseFloat(document.getElementById('add-ing-qty').value);
+    const unit = document.getElementById('add-ing-unit').value;
+    if (!qty || qty <= 0) { showToast('Informe a quantidade', 'error'); return; }
+    currentComponents.push({ type: 'ingredient', ingredient_id: id, sub_dish_id: null, quantity: qty, unit, name: ing.name });
+    renderComponents();
+    modalAddIng().hide();
+}
+
+function openAddSub() {
+    const currentId = editingDishId;
+    const sel = document.getElementById('add-sub-id');
+    // filtra para não referenciar o próprio prato
+    const options = dishes.filter(d => d.id !== currentId);
+    sel.innerHTML = options.map(d => `<option value="${d.id}">${d.name}${d.yield_quantity ? ' (rende ' + num(d.yield_quantity) + ' ' + (d.yield_unit||'') + ')' : ' ⚠ sem rendimento'}</option>`).join('');
+    document.getElementById('add-sub-qty').value = '';
+    modalAddSub().show();
+}
+
+function confirmAddSub() {
+    const sel = document.getElementById('add-sub-id');
+    const id = parseInt(sel.value);
+    const sub = dishes.find(d => d.id === id);
+    const qty = parseFloat(document.getElementById('add-sub-qty').value);
+    const unit = document.getElementById('add-sub-unit').value;
+    if (!qty || qty <= 0) { showToast('Informe a quantidade', 'error'); return; }
+    currentComponents.push({ type: 'sub_dish', ingredient_id: null, sub_dish_id: id, quantity: qty, unit, name: sub.name });
+    renderComponents();
+    modalAddSub().hide();
+}
+
+async function saveDish() {
+    const name = document.getElementById('dish-name').value.trim();
+    if (!name) { showToast('Informe o nome da preparação', 'error'); return; }
+    const data = {
+        name,
+        description: document.getElementById('dish-desc').value.trim() || null,
+        preparation_steps: document.getElementById('dish-steps').value.trim() || null,
+        yield_quantity: parseFloat(document.getElementById('dish-yield-qty').value) || null,
+        yield_unit: document.getElementById('dish-yield-unit').value || null,
+        selling_price: parseFloat(document.getElementById('dish-price').value) || null,
+        is_sellable: document.getElementById('dish-sellable').checked,
+        components: currentComponents.map(c => ({
+            ingredient_id: c.ingredient_id,
+            sub_dish_id: c.sub_dish_id,
+            quantity: c.quantity,
+            unit: c.unit,
+        })),
+    };
+    try {
+        if (editingDishId) {
+            await api.updateDish(editingDishId, data);
+            showToast('Preparação atualizada');
+        } else {
+            await api.createDish(data);
+            showToast('Preparação criada');
+        }
+        modalDish().hide();
+        load();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function viewCost(id) {
+    try {
+        const cost = await api.getDishCost(id);
+        document.getElementById('cost-title').textContent = 'Custo: ' + cost.dish_name;
+        let rows = cost.components.map(c => `
+            <tr class="${c.is_complete ? '' : 'table-warning'}">
+              <td><span class="badge ${c.type === 'ingredient' ? 'bg-primary' : 'bg-purple'}"
+                style="${c.type !== 'ingredient' ? 'background:#6f42c1' : ''}">${c.type === 'ingredient' ? 'Ingrediente' : 'Sub-prep'}</span></td>
+              <td>${c.name}</td>
+              <td>${num(c.quantity)} ${c.unit}</td>
+              <td>${c.cost_per_unit != null ? brl(c.cost_per_unit) : '—'}</td>
+              <td class="fw-bold">${brl(c.total)}</td>
+              <td>${c.error ? '<span class="text-danger small">'+c.error+'</span>' : ''}</td>
+            </tr>`).join('');
+
+        let suggestions = '';
+        if (Object.keys(cost.suggested_prices).length) {
+            suggestions = '<div class="mt-3"><strong>Preços sugeridos:</strong><div class="d-flex gap-2 mt-1">' +
+                Object.entries(cost.suggested_prices).map(([m, p]) =>
+                    `<span class="badge bg-secondary fs-6">${m} → ${brl(p)}</span>`
+                ).join('') + '</div></div>';
+        }
+
+        document.getElementById('cost-body').innerHTML = `
+            <table class="table table-sm table-bordered">
+              <thead class="table-dark"><tr><th>Tipo</th><th>Componente</th><th>Quantidade</th><th>Custo/unid.</th><th>Total</th><th></th></tr></thead>
+              <tbody>${rows}</tbody>
+              <tfoot class="table-light fw-bold">
+                <tr><td colspan="4" class="text-end">Custo total da receita</td><td>${brl(cost.total_cost)}</td><td></td></tr>
+                ${cost.cost_per_yield_unit ? `<tr><td colspan="4" class="text-end">Custo por ${cost.yield_unit||'unid.'}</td><td>${brl(cost.cost_per_yield_unit)}</td><td></td></tr>` : ''}
+                ${cost.selling_price ? `<tr><td colspan="4" class="text-end">Preço de venda</td><td>${brl(cost.selling_price)}</td><td></td></tr>` : ''}
+                ${cost.margin_percent != null ? `<tr><td colspan="4" class="text-end">Margem</td><td class="${cost.margin_percent < 0 ? 'text-danger' : 'text-success'}">${pct(cost.margin_percent)}</td><td></td></tr>` : ''}
+              </tfoot>
+            </table>
+            ${!cost.is_complete ? '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Custo incompleto — defina o rendimento de todas as sub-preparações.</div>' : ''}
+            ${suggestions}`;
+        modalCost().show();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function remove(id, name) {
+    if (!confirm(`Excluir "${name}"?`)) return;
+    try {
+        await api.deleteDish(id);
+        showToast('Preparação excluída');
+        load();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+load();
+</script>
+</body>
+</html>
