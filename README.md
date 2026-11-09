@@ -12,6 +12,17 @@ python run.py       # abre em http://localhost:8000
 
 Tudo roda no seu computador: as contas são feitas pelo próprio app e não gastam créditos de IA. O app funciona sem internet. O banco de dados é o arquivo `cozinha.db`. Para recomeçar do zero, apague esse arquivo.
 
+## Trazer os cadastros da primeira versão
+
+Se você usou a primeira versão (telas "Ingredientes" e "Preparações", arquivo `restaurante.db`):
+
+```bash
+python importar_v1.py                         # se o restaurante.db está nesta pasta
+python importar_v1.py C:\caminho\restaurante.db  # se está em outra pasta
+```
+
+Ingredientes viram itens comprados (com custo e saldo), preparações usadas dentro de outras viram itens produzidos e as demais viram pratos. Gramas/quilos e mL/litros são convertidos. O importador só roda com o `cozinha.db` vazio, não altera o `restaurante.db` e salva em `relatorio_importacao.txt` o que precisa ser conferido.
+
 ## Como o app enxerga a cozinha
 
 Todo item é de um de três tipos:
