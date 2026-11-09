@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cozinha — Itens e fichas técnicas</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h4 class="fw-bold mb-0"><i class="bi bi-journal-richtext"></i> Itens e fichas técnicas</h4>
+    <button class="btn btn-primary" onclick="openCreate()"><i class="bi bi-plus-lg"></i> Novo item</button>
+  </div>
+
+  <ul class="nav nav-pills mb-3" id="tabs">
+    <li class="nav-item"><button class="nav-link" data-kind="compra">Comprados <span class="help">(insumos, embalagens)</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-kind="producao">Produzidos <span class="help">(porções, molhos, nhoque)</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-kind="venda">Pratos do cardápio</button></li>
+  </ul>
+  <p class="help" id="tab-help"></p>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark" id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Modal item -->
+<div class="modal fade" id="mItem" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title" id="mTitle">Novo item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-4">
+          <div class="col-lg-5">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nome *</label>
+              <input class="form-control" id="f-name">
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-7">
+                <label class="form-label fw-semibold">Tipo *</label>
+                <select class="form-select" id="f-kind">
+                  <option value="compra">Comprado</option>
+                  <option value="producao">Produzido na cozinha</option>
+                  <option value="venda">Prato do cardápio</option>
+                </select>
+              </div>
+              <div class="col-5 show-stock">
+                <label class="form-label fw-semibold">Unidade de estoque *</label>
+                <select class="form-select" id="f-unit">
+                  <option value="kg">kg</option><option value="g">g</option>
+                  <option value="L">L</option><option value="mL">mL</option>
+                  <option value="un">un / porção</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-3 show-compra">
+              <div class="col-4">
+                <label class="form-label">Custo atual (R$/<span class="u"></span>)</label>
+                <input class="form-control" id="f-cost" inputmode="decimal">
+                <div class="help">Atualiza sozinho a cada compra</div>
+              </div>
+              <div class="col-4">
+                <label class="form-label">Embalagem de compra</label>
+                <input class="form-control" id="f-pack" inputmode="decimal" placeholder="ex: 2">
+                <div class="help">em <span class="u"></span></div>
+              </div>
+              <div class="col-4">
+                <label class="form-label">Nome da embalagem</label>
+                <input class="form-control" id="f-packlabel" placeholder="pacote, caixa">
+              </div>
+            </div>
+
+            <div class="row g-2 mb-3 show-producao">
+              <div class="col-6">
+                <label class="form-label fw-semibold">Rendimento de 1 receita</label>
+                <div class="input-group"><input class="form-control" id="f-yield" inputmode="decimal">
+                  <span class="input-group-text u"></span></div>
+                <div class="help">O que a receita realmente produz depois de pronta (pesado/contado)</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Lote mínimo</label>
+                <div class="input-group"><input class="form-control" id="f-batch" inputmode="decimal" value="0">
+                  <span class="input-group-text u"></span></div>
+                <div class="help">Nunca sugerir produzir menos que isso</div>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-3 show-stock">
+              <div class="col-6">
+                <label class="form-label">Dias de cobertura</label>
+                <input class="form-control" id="f-cov" inputmode="decimal" value="6">
+                <div class="help">Quantos dias de trabalho o estoque deve aguentar</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Estoque de segurança</label>
+                <div class="input-group"><input class="form-control" id="f-min" inputmode="decimal" value="0">
+                  <span class="input-group-text u"></span></div>
+              </div>
+            </div>
+
+            <div class="mb-3 show-venda">
+              <label class="form-label fw-semibold">Preço de venda (R$)</label>
+              <input class="form-control" id="f-price" inputmode="decimal">
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="f-active" checked>
+              <label class="form-check-label" for="f-active">Ativo</label>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Observações / modo de preparo</label>
+              <textarea class="form-control" id="f-notes" rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="col-lg-7 show-recipe">
+            <h6 class="fw-bold">Ficha técnica</h6>
+            <p class="help" id="recipe-help"></p>
+            <table class="table table-sm">
+              <thead><tr><th>Componente</th><th class="num">Quantidade</th><th></th><th class="num">Custo</th><th></th></tr></thead>
+              <tbody id="recipe-body"></tbody>
+            </table>
+            <button class="btn btn-sm btn-outline-primary" onclick="addLine()"><i class="bi bi-plus"></i> Adicionar componente</button>
+            <div class="card bg-light mt-3"><div class="card-body py-2" id="preview"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-danger me-auto d-none" id="btn-del" onclick="removeItem()"><i class="bi bi-trash"></i> Excluir</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="save()"><i class="bi bi-check-lg"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal custo -->
+<div class="modal fade" id="mCost" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="cTitle"></h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="cBody"></div>
+  </div></div>
+</div>
+
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+renderNav('itens');
+let all = [], kind = new URLSearchParams(location.search).get('tipo') || 'compra', editing = null, lines = [];
+const mItem = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('mItem'));
+const $ = id => document.getElementById(id);
+
+const HELP = {
+  compra: 'O que vem do fornecedor. O custo é atualizado pela média das compras (peso bruto e valor total).',
+  producao: 'O que a cozinha produz ou fraciona e guarda em estoque. A ficha diz o que entra em UMA receita e o rendimento diz o que sai de fato.',
+  venda: 'Pratos do cardápio. A ficha diz o que vai em 1 prato (porções, molhos, embalagens). A venda baixa exatamente esses itens.',
+};
+
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { kind = b.dataset.kind; render(); });
+
+async function load() { all = await api.items(); render(); }
+
+function statusBadge(i) {
+  if (!i.cost_issues.length) return '';
+  return `<i class="bi bi-exclamation-triangle-fill text-warning" title="${esc(i.cost_issues.join('\n'))}"></i>`;
+}
+
+function render() {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+  $('tab-help').textContent = HELP[kind];
+  const rows = all.filter(i => i.kind === kind);
+  const heads = {
+    compra: ['Nome', 'Estoque', 'Custo médio', 'Embalagem', 'Cobertura', ''],
+    producao: ['Nome', 'Estoque', 'Rende/receita', 'Custo pela ficha', 'Custo real médio', 'Cobertura / lote mín.', ''],
+    venda: ['Prato', 'Custo pela ficha', 'Preço', 'CMV', 'Componentes', ''],
+  }[kind];
+  $('thead').innerHTML = '<tr>' + heads.map((h, i) => `<th class="${i > 0 && i < heads.length - 1 ? 'num' : ''}">${h}</th>`).join('') + '</tr>';
+  if (!rows.length) { $('tbody').innerHTML = `<tr><td colspan="${heads.length}" class="text-center text-muted py-4">Nenhum item cadastrado</td></tr>`; return; }
+  $('tbody').innerHTML = rows.map(i => {
+    const name = `<td class="fw-semibold">${esc(i.name)} ${statusBadge(i)} ${i.active ? '' : '<span class="badge bg-secondary">inativo</span>'}</td>`;
+    const actions = `<td class="text-end text-nowrap">
+        ${i.kind !== 'compra' ? `<button class="btn btn-sm btn-outline-info" title="Custo detalhado" onclick="viewCost(${i.id})"><i class="bi bi-calculator"></i></button>` : ''}
+        <button class="btn btn-sm btn-outline-primary" title="Editar" onclick="openEdit(${i.id})"><i class="bi bi-pencil"></i></button></td>`;
+    const stock = `<td class="num ${i.stock < 0 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td>`;
+    if (kind === 'compra') return `<tr>${name}${stock}
+        <td class="num">${i.avg_cost ? brl(i.avg_cost) + '/' + i.unit : '<span class="text-warning">sem custo</span>'}</td>
+        <td class="num">${i.pack_size ? qty(i.pack_size, i.unit) + ' ' + esc(i.pack_label || '') : '—'}</td>
+        <td class="num">${num(i.coverage_days)} dias</td>${actions}</tr>`;
+    if (kind === 'producao') return `<tr>${name}${stock}
+        <td class="num">${i.yield_quantity ? qty(i.yield_quantity, i.unit) : '<span class="text-warning">definir</span>'}</td>
+        <td class="num">${i.unit_cost != null ? brl(i.unit_cost) + '/' + i.unit : '—'}</td>
+        <td class="num">${i.avg_cost ? brl(i.avg_cost) + '/' + i.unit : '—'}</td>
+        <td class="num">${num(i.coverage_days)} dias${i.min_batch ? ' / ' + qty(i.min_batch, i.unit) : ''}</td>${actions}</tr>`;
+    return `<tr>${name}
+        <td class="num">${brl(i.unit_cost)}</td><td class="num">${brl(i.selling_price)}</td>
+        <td class="num ${i.cmv_percent > 40 ? 'text-danger fw-bold' : ''}">${pct(i.cmv_percent)}</td>
+        <td class="num">${i.recipe.length}</td>${actions}</tr>`;
+  }).join('');
+}
+
+// ── formulário ──
+function setField(id, v) { $(id).value = v ?? ''; }
+function toggleKind() {
+  const k = $('f-kind').value;
+  document.querySelectorAll('.show-compra').forEach(e => e.classList.toggle('d-none', k !== 'compra'));
+  document.querySelectorAll('.show-producao').forEach(e => e.classList.toggle('d-none', k !== 'producao'));
+  document.querySelectorAll('.show-venda').forEach(e => e.classList.toggle('d-none', k !== 'venda'));
+  document.querySelectorAll('.show-stock').forEach(e => e.classList.toggle('d-none', k === 'venda'));
+  document.querySelectorAll('.show-recipe').forEach(e => e.classList.toggle('d-none', k === 'compra'));
+  $('recipe-help').textContent = k === 'producao'
+    ? 'Quantidades de UMA receita/lote, na unidade de cada componente (peso bruto, como sai do estoque).'
+    : 'Quantidades usadas para montar 1 prato, na unidade de cada componente (ex.: 1 porção de arroz, 1 bife, 1 embalagem).';
+  updateUnits();
+}
+function updateUnits() {
+  const u = $('f-kind').value === 'venda' ? 'un' : $('f-unit').value;
+  document.querySelectorAll('.u').forEach(e => e.textContent = u);
+  renderLines();
+}
+$('f-kind').onchange = toggleKind;
+$('f-unit').onchange = updateUnits;
+['f-yield', 'f-price'].forEach(id => $(id).oninput = renderPreview);
+
+function openCreate() {
+  editing = null; lines = [];
+  $('mTitle').textContent = 'Novo item';
+  ['f-name', 'f-cost', 'f-pack', 'f-packlabel', 'f-yield', 'f-price', 'f-notes'].forEach(id => setField(id, ''));
+  setField('f-batch', 0); setField('f-cov', 6); setField('f-min', 0);
+  $('f-kind').value = kind; $('f-unit').value = kind === 'producao' ? 'un' : 'kg';
+  $('f-active').checked = true;
+  $('btn-del').classList.add('d-none');
+  toggleKind(); mItem().show();
+}
+
+function openEdit(id) {
+  const i = all.find(x => x.id === id); editing = i;
+  $('mTitle').textContent = 'Editar: ' + i.name;
+  setField('f-name', i.name); $('f-kind').value = i.kind; $('f-unit').value = i.unit;
+  setField('f-cost', i.avg_cost || ''); setField('f-pack', i.pack_size); setField('f-packlabel', i.pack_label);
+  setField('f-yield', i.yield_quantity); setField('f-batch', i.min_batch); setField('f-cov', i.coverage_days);
+  setField('f-min', i.min_stock); setField('f-price', i.selling_price); setField('f-notes', i.notes);
+  $('f-active').checked = i.active;
+  lines = i.recipe.map(r => ({ component_id: r.component_id, quantity: r.quantity }));
+  $('btn-del').classList.remove('d-none');
+  toggleKind(); mItem().show();
+}
+
+function componentOptions(selected) {
+  const opts = all.filter(i => i.kind !== 'venda' && (!editing || i.id !== editing.id))
+    .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+  return '<option value="">— escolha —</option>' + ['compra', 'producao'].map(k =>
+    `<optgroup label="${KIND_LABEL[k]}">` + opts.filter(o => o.kind === k).map(o =>
+      `<option value="${o.id}" ${o.id === selected ? 'selected' : ''}>${esc(o.name)} (${o.unit})</option>`).join('') + '</optgroup>').join('');
+}
+
+function addLine() { lines.push({ component_id: null, quantity: null }); renderLines(); }
+
+function renderLines() {
+  $('recipe-body').innerHTML = lines.length ? lines.map((l, idx) => {
+    const c = all.find(i => i.id === l.component_id);
+    const cost = c && c.unit_cost != null && l.quantity ? brl(c.unit_cost * l.quantity) : '—';
+    return `<tr>
+      <td><select class="form-select form-select-sm" onchange="lines[${idx}].component_id=+this.value||null;renderLines()">${componentOptions(l.component_id)}</select></td>
+      <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${l.quantity ?? ''}" oninput="lines[${idx}].quantity=parseNum(this.value);renderPreview()" onchange="renderLines()"></td>
+      <td class="text-muted">${c ? c.unit : ''}</td>
+      <td class="num">${cost}</td>
+      <td><button class="btn btn-sm btn-outline-danger py-0" onclick="lines.splice(${idx},1);renderLines()"><i class="bi bi-x"></i></button></td></tr>`;
+  }).join('') : '<tr><td colspan="5" class="text-muted text-center">Nenhum componente</td></tr>';
+  renderPreview();
+}
+
+function renderPreview() {
+  const k = $('f-kind').value;
+  let total = 0, missing = false;
+  for (const l of lines) {
+    const c = all.find(i => i.id === l.component_id);
+    if (!c || !l.quantity) continue;
+    if (c.unit_cost == null || !c.unit_cost) missing = true; else total += c.unit_cost * l.quantity;
+  }
+  let html = `Custo dos componentes: <strong>${brl(total)}</strong>`;
+  if (k === 'producao') {
+    const y = parseNum($('f-yield').value), u = $('f-unit').value;
+    html += y ? ` → <strong>${brl(total / y)}</strong> por ${u}` : ' <span class="text-warning">(informe o rendimento)</span>';
+  } else if (k === 'venda') {
+    const p = parseNum($('f-price').value);
+    if (p) { const cmv = total / p * 100; html += ` · CMV <strong class="${cmv > 40 ? 'text-danger' : 'text-success'}">${pct(cmv)}</strong>`; }
+  }
+  if (missing) html += '<div class="text-warning small">Algum componente ainda não tem custo.</div>';
+  $('preview').innerHTML = html;
+}
+
+async function save() {
+  const k = $('f-kind').value;
+  const data = {
+    name: $('f-name').value.trim(), kind: k, unit: k === 'venda' ? 'un' : $('f-unit').value,
+    min_stock: parseNum($('f-min').value) || 0, coverage_days: parseNum($('f-cov').value) ?? 6,
+    yield_quantity: parseNum($('f-yield').value), min_batch: parseNum($('f-batch').value) || 0,
+    pack_size: parseNum($('f-pack').value), pack_label: $('f-packlabel').value.trim() || null,
+    selling_price: parseNum($('f-price').value), notes: $('f-notes').value.trim() || null,
+    active: $('f-active').checked,
+    recipe: k === 'compra' ? [] : lines.filter(l => l.component_id && l.quantity > 0),
+  };
+  const cost = parseNum($('f-cost').value);
+  if (k === 'compra' && cost != null) data.avg_cost = cost;
+  if (!data.name) return toast('Informe o nome', 'error');
+  if (lines.some(l => (l.component_id && !(l.quantity > 0)) || (!l.component_id && l.quantity))) return toast('Complete ou remova as linhas incompletas da ficha', 'error');
+  await safe(async () => {
+    if (editing) await api.updateItem(editing.id, data); else await api.createItem(data);
+    toast('Salvo'); mItem().hide(); kind = k; await load();
+  });
+}
+
+async function removeItem() {
+  if (!confirm(`Excluir "${editing.name}"?`)) return;
+  await safe(async () => { await api.deleteItem(editing.id); toast('Excluído'); mItem().hide(); await load(); });
+}
+
+async function viewCost(id) {
+  await safe(async () => {
+    const c = await api.itemCost(id);
+    $('cTitle').textContent = 'Custo: ' + c.name;
+    const per = c.kind === 'producao' ? `<tr><td colspan="4" class="text-end">÷ rendimento ${qty(c.yield_quantity, c.unit)} = custo por ${c.unit}</td><td class="num">${brl(c.unit_cost)}</td></tr>` : '';
+    $('cBody').innerHTML = `
+      <table class="table table-sm">
+        <thead class="table-dark"><tr><th>Componente</th><th class="num">Qtd</th><th class="num">Custo unit.</th><th></th><th class="num">Total</th></tr></thead>
+        <tbody>${c.lines.map(l => `<tr><td>${esc(l.name)} <span class="badge kind-${l.kind}">${KIND_LABEL[l.kind]}</span></td>
+          <td class="num">${qty(l.quantity, l.unit)}</td><td class="num">${brl(l.unit_cost)}</td><td></td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
+        <tfoot class="fw-bold"><tr><td colspan="4" class="text-end">Total da ficha</td><td class="num">${brl(c.recipe_cost)}</td></tr>${per}
+          ${c.selling_price ? `<tr><td colspan="4" class="text-end">Preço de venda · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.cmv_percent)}</td></tr>` : ''}
+          ${c.kind === 'producao' && c.avg_cost ? `<tr><td colspan="4" class="text-end">Custo real médio (produções registradas)</td><td class="num">${brl(c.avg_cost)}</td></tr>` : ''}</tfoot>
+      </table>
+      ${c.issues.length ? `<div class="alert alert-warning small">${c.issues.map(esc).join('<br>')}</div>` : ''}
+      ${Object.keys(c.suggested_prices).length ? `<div><strong>Preço sugerido por CMV desejado:</strong><div class="d-flex flex-wrap gap-2 mt-1">${Object.entries(c.suggested_prices).map(([k, v]) => `<span class="badge bg-secondary fs-6">${k} → ${brl(v)}</span>`).join('')}</div></div>` : ''}`;
+    bootstrap.Modal.getOrCreateInstance($('mCost')).show();
+  });
+}
+
+load();
+</script>
+</body>
+</html>

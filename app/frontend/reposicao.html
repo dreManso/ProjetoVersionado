@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cozinha — Reposição</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+    <h4 class="fw-bold mb-0"><i class="bi bi-clipboard-check"></i> Reposição <span class="help" id="when"></span></h4>
+    <button class="btn btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
+  </div>
+  <p class="help no-print" id="rule"></p>
+  <div id="warnings"></div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header fw-semibold"><i class="bi bi-fire"></i> 1. Produzir / fracionar</div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>Item</th><th class="num">Estoque</th><th class="num">Média/dia</th><th class="num">Alvo</th><th class="num">Produzir</th><th>Vai usar</th></tr></thead>
+        <tbody id="produce"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header fw-semibold d-flex"><span class="me-auto"><i class="bi bi-cart3"></i> 2. Comprar</span><span>Estimado: <strong id="buy-total"></strong></span></div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>Item</th><th class="num">Estoque</th><th class="num">Média/dia</th><th class="num">Para a produção acima</th><th class="num">Alvo</th><th class="num">Comprar</th><th class="num">Custo est.</th></tr></thead>
+        <tbody id="buy"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+renderNav('reposicao');
+const $ = id => document.getElementById(id);
+
+async function load() {
+  const r = await api.replenishment();
+  $('when').textContent = '· ' + new Date().toLocaleDateString('pt-BR');
+  $('rule').textContent = `Média de consumo das últimas ${r.window_days / 7} semanas (${r.work_days_per_week} dias de trabalho por semana). Alvo = média/dia × dias de cobertura do item + estoque de segurança. A produção sugerida já é descontada dos insumos, e só falta comprar o que não tem.`;
+  $('warnings').innerHTML = r.warnings.map(w => `<div class="alert alert-warning py-2 small">${esc(w)}</div>`).join('');
+
+  $('produce').innerHTML = r.produce.length ? r.produce.map(p => `<tr>
+      <td class="fw-semibold">${esc(p.name)}<div class="help">${num(p.coverage_days)} dias de cobertura</div></td>
+      <td class="num ${p.stock < 0 ? 'text-danger' : ''}">${qty(p.stock, p.unit)}</td>
+      <td class="num">${qty(p.daily, p.unit)}</td>
+      <td class="num">${qty(p.target, p.unit)}${p.for_production ? `<div class="help">+${qty(p.for_production, p.unit)} p/ produção</div>` : ''}</td>
+      <td class="num fw-bold">${qty(p.suggested, p.unit)}<div class="help">${num(p.batches, 2)} receita(s)</div></td>
+      <td class="small">${p.inputs.map(i => `${esc(i.name)}: ${qty(i.quantity, i.unit)}`).join('<br>')}</td></tr>`).join('')
+    : '<tr><td colspan="6" class="text-center text-success py-3"><i class="bi bi-check-circle"></i> Nada para produzir</td></tr>';
+
+  $('buy').innerHTML = r.buy.length ? r.buy.map(b => `<tr>
+      <td class="fw-semibold">${esc(b.name)}<div class="help">${num(b.coverage_days)} dias de cobertura</div></td>
+      <td class="num ${b.stock < 0 ? 'text-danger' : ''}">${qty(b.stock, b.unit)}</td>
+      <td class="num">${qty(b.daily, b.unit)}</td>
+      <td class="num">${b.for_production ? qty(b.for_production, b.unit) : '—'}</td>
+      <td class="num">${qty(b.target, b.unit)}</td>
+      <td class="num fw-bold">${b.packs ? `${b.packs} ${esc(b.pack_label)}<div class="help">${qty(b.suggested, b.unit)}</div>` : qty(b.suggested, b.unit)}</td>
+      <td class="num">${b.estimated_cost ? brl(b.estimated_cost) : '—'}</td></tr>`).join('')
+    : '<tr><td colspan="7" class="text-center text-success py-3"><i class="bi bi-check-circle"></i> Nada para comprar</td></tr>';
+  $('buy-total').textContent = brl(r.buy_total);
+}
+
+safe(load);
+</script>
+</body>
+</html>

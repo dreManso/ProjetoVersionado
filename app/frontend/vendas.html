@@ -3,169 +3,141 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Restaurante — Vendas</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<style>body { background: #f8f9fa; }</style>
+<title>Cozinha — Vendas</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
 </head>
 <body>
-
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container">
-    <a class="navbar-brand" href="/index.html"><i class="bi bi-shop"></i> Restaurante</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" href="/index.html"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link" href="/ingredientes.html"><i class="bi bi-basket2"></i> Ingredientes</a></li>
-        <li class="nav-item"><a class="nav-link" href="/preparacoes.html"><i class="bi bi-journal-richtext"></i> Preparações</a></li>
-        <li class="nav-item"><a class="nav-link active" href="/vendas.html"><i class="bi bi-cart3"></i> Vendas</a></li>
-        <li class="nav-item"><a class="nav-link" href="/estoque.html"><i class="bi bi-box-seam"></i> Estoque</a></li>
-      </ul>
-    </div>
-  </div>
-</nav>
-
-<div class="container py-4">
-  <h4 class="fw-bold mb-4"><i class="bi bi-cart3"></i> Registrar Venda</h4>
+<div id="nav"></div>
+<main class="container py-4">
+  <h4 class="fw-bold mb-1"><i class="bi bi-cart3"></i> Fechamento de vendas</h4>
+  <p class="help">Digite quantos de cada prato saíram (do relatório do dia do PDV/iFood) ou cole a lista. A baixa é feita nas porções e embalagens de cada prato.</p>
 
   <div class="row g-4">
-    <!-- Formulário -->
-    <div class="col-md-4">
+    <div class="col-lg-7">
       <div class="card shadow-sm">
-        <div class="card-header fw-semibold">Nova Venda</div>
-        <div class="card-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Preparação *</label>
-            <select class="form-select" id="sale-dish" onchange="onDishChange()">
-              <option value="">— Selecione —</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Quantidade *</label>
-            <input type="number" class="form-control" id="sale-qty" min="0.5" step="0.5" value="1" oninput="updateTotal()">
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Preço unitário (R$) *</label>
-            <input type="number" class="form-control" id="sale-price" min="0" step="0.01" oninput="updateTotal()">
-          </div>
-          <div class="card bg-light mb-3">
-            <div class="card-body py-2 text-center">
-              <div class="small text-muted">Total da venda</div>
-              <div class="fs-4 fw-bold text-success" id="sale-total">R$ 0,00</div>
-            </div>
-          </div>
-          <div id="dish-info" class="alert alert-info small d-none"></div>
-          <button class="btn btn-success w-100" onclick="registerSale()">
-            <i class="bi bi-check-circle"></i> Registrar Venda
-          </button>
-          <div class="form-text text-muted mt-2">
-            <i class="bi bi-info-circle"></i> O estoque de ingredientes será deduzido automaticamente.
-          </div>
+        <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+          <span class="fw-semibold me-auto">Pratos vendidos</span>
+          <input type="date" class="form-control form-control-sm" style="max-width:160px" id="s-day">
+          <input class="form-control form-control-sm" style="max-width:180px" id="s-filter" placeholder="Filtrar...">
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light"><tr><th>Prato</th><th class="num">Preço</th><th class="num">Qtd</th><th class="num">Subtotal</th></tr></thead>
+            <tbody id="grid"></tbody>
+          </table>
+        </div>
+        <div class="card-footer d-flex align-items-center gap-3">
+          <div class="me-auto"><span class="help">Total</span> <span class="fs-5 fw-bold text-success" id="s-total">R$ 0,00</span> <span class="help" id="s-count"></span></div>
+          <button class="btn btn-outline-secondary btn-sm" onclick="clearGrid()">Limpar</button>
+          <button class="btn btn-success" onclick="save()"><i class="bi bi-check-circle"></i> Registrar vendas</button>
         </div>
       </div>
     </div>
 
-    <!-- Histórico -->
-    <div class="col-md-8">
+    <div class="col-lg-5">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold"><i class="bi bi-clipboard"></i> Colar lista</div>
+        <div class="card-body">
+          <textarea class="form-control mb-2" id="paste" rows="5" placeholder="Estrogonofe;12&#10;Parmegiana	8&#10;3 Batata frita grande"></textarea>
+          <div class="help mb-2">Uma linha por prato: <code>nome;quantidade</code>, colado de planilha, ou <code>quantidade nome</code>.</div>
+          <button class="btn btn-outline-primary btn-sm" onclick="applyPaste()">Preencher a tabela</button>
+          <div id="paste-result" class="small mt-2"></div>
+        </div>
+      </div>
       <div class="card shadow-sm">
-        <div class="card-header fw-semibold">Histórico de Vendas</div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-              <thead class="table-dark">
-                <tr><th>Data/Hora</th><th>Preparação</th><th>Qtd</th><th>Preço Unit.</th><th>Total</th></tr>
-              </thead>
-              <tbody id="sales-body"></tbody>
-            </table>
-          </div>
+        <div class="card-header fw-semibold">Últimos lançamentos</div>
+        <div class="table-responsive" style="max-height:420px">
+          <table class="table table-sm mb-0">
+            <tbody id="hist"></tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
-</div>
-
-<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</main>
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
 <script src="/js/api.js"></script>
 <script>
-let dishes = [];
+renderNav('vendas');
+const $ = id => document.getElementById(id);
+let dishes = [], qtys = {}, prices = {};
+$('s-day').value = todayISO();
+$('s-filter').oninput = renderGrid;
 
 async function load() {
-    [dishes] = await Promise.all([api.getDishes()]);
-    const sel = document.getElementById('sale-dish');
-    const sellable = dishes.filter(d => d.is_sellable);
-    sel.innerHTML = '<option value="">— Selecione —</option>' +
-        sellable.map(d => `<option value="${d.id}" data-price="${d.selling_price || ''}">${d.name}</option>`).join('');
-    loadSales();
+  dishes = (await api.items('venda')).filter(d => d.active);
+  dishes.forEach(d => { if (prices[d.id] == null) prices[d.id] = d.selling_price || 0; });
+  renderGrid(); loadHist();
 }
 
-async function loadSales() {
-    const sales = await api.getSales();
-    const tbody = document.getElementById('sales-body');
-    if (!sales.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Nenhuma venda registrada</td></tr>';
-        return;
-    }
-    tbody.innerHTML = sales.map(s => `
-        <tr>
-          <td class="small">${new Date(s.date).toLocaleString('pt-BR')}</td>
-          <td>${s.dish_name}</td>
-          <td>${num(s.quantity_sold, 1)}</td>
-          <td>${brl(s.unit_price)}</td>
-          <td class="fw-bold text-success">${brl(s.total)}</td>
-        </tr>`).join('');
+function renderGrid() {
+  const f = norm($('s-filter').value);
+  const rows = dishes.filter(d => !f || norm(d.name).includes(f));
+  $('grid').innerHTML = rows.length ? rows.map(d => `<tr class="${qtys[d.id] ? 'table-success' : ''}">
+      <td>${esc(d.name)}${d.recipe.length ? '' : ' <i class="bi bi-exclamation-triangle text-warning" title="Sem ficha técnica"></i>'}</td>
+      <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${prices[d.id] ?? ''}" oninput="prices[${d.id}]=parseNum(this.value)||0;totals()"></td>
+      <td><input class="form-control form-control-sm qty-input" inputmode="numeric" value="${qtys[d.id] || ''}" oninput="qtys[${d.id}]=parseNum(this.value)||0;this.closest('tr').classList.toggle('table-success',qtys[${d.id}]>0);totals()"></td>
+      <td class="num" id="sub-${d.id}"></td></tr>`).join('')
+    : '<tr><td colspan="4" class="text-center text-muted py-3">Nenhum prato cadastrado. Cadastre em "Itens e fichas".</td></tr>';
+  totals();
 }
 
-function onDishChange() {
-    const sel = document.getElementById('sale-dish');
-    const opt = sel.options[sel.selectedIndex];
-    const price = opt.dataset.price;
-    if (price) {
-        document.getElementById('sale-price').value = parseFloat(price).toFixed(2);
-    }
-    // mostrar info do prato
-    const dish = dishes.find(d => d.id === parseInt(sel.value));
-    const info = document.getElementById('dish-info');
-    if (dish) {
-        const parts = [];
-        if (dish.total_cost) parts.push(`Custo: ${brl(dish.total_cost)}`);
-        if (dish.margin_percent != null) parts.push(`Margem: ${pct(dish.margin_percent)}`);
-        if (!dish.is_cost_complete) parts.push('⚠ Custo incompleto');
-        info.textContent = parts.join(' | ');
-        info.classList.remove('d-none');
-    } else {
-        info.classList.add('d-none');
-    }
-    updateTotal();
+function totals() {
+  let t = 0, n = 0;
+  dishes.forEach(d => {
+    const s = (qtys[d.id] || 0) * (prices[d.id] || 0); t += s; n += qtys[d.id] || 0;
+    const el = $('sub-' + d.id); if (el) el.textContent = qtys[d.id] ? brl(s) : '';
+  });
+  $('s-total').textContent = brl(t);
+  $('s-count').textContent = n ? `${num(n, 1)} pratos` : '';
 }
 
-function updateTotal() {
-    const qty = parseFloat(document.getElementById('sale-qty').value) || 0;
-    const price = parseFloat(document.getElementById('sale-price').value) || 0;
-    document.getElementById('sale-total').textContent = brl(qty * price);
+function clearGrid() { qtys = {}; renderGrid(); }
+
+function applyPaste() {
+  const index = Object.fromEntries(dishes.map(d => [norm(d.name), d]));
+  const ok = [], bad = [];
+  for (const raw of $('paste').value.split('\n')) {
+    const line = raw.trim(); if (!line) continue;
+    let m = line.match(/^(.*?)\s*[;\t,|]\s*([\d.,]+)\s*$/) || line.match(/^(.*\D)\s+([\d.,]+)$/);
+    let name, q;
+    if (m) { name = m[1]; q = parseNum(m[2]); }
+    else if ((m = line.match(/^([\d.,]+)\s*x?\s+(.+)$/i))) { q = parseNum(m[1]); name = m[2]; }
+    const d = name && index[norm(name)];
+    if (d && q > 0) { qtys[d.id] = (qtys[d.id] || 0) + q; ok.push(`${d.name} +${q}`); }
+    else bad.push(line);
+  }
+  renderGrid();
+  $('paste-result').innerHTML = (ok.length ? `<div class="text-success">${ok.length} linha(s) aplicada(s)</div>` : '') +
+    (bad.length ? `<div class="text-danger">Não reconhecido (confira o nome do prato):<br>${bad.map(esc).join('<br>')}</div>` : '');
 }
 
-async function registerSale() {
-    const dishId = parseInt(document.getElementById('sale-dish').value);
-    const qty = parseFloat(document.getElementById('sale-qty').value);
-    const price = parseFloat(document.getElementById('sale-price').value);
-    if (!dishId) { showToast('Selecione a preparação', 'error'); return; }
-    if (!qty || qty <= 0) { showToast('Informe a quantidade', 'error'); return; }
-    if (!price || price <= 0) { showToast('Informe o preço', 'error'); return; }
-    try {
-        await api.registerSale({ dish_id: dishId, quantity_sold: qty, unit_price: price });
-        showToast('Venda registrada! Estoque atualizado.');
-        document.getElementById('sale-dish').value = '';
-        document.getElementById('sale-qty').value = '1';
-        document.getElementById('sale-price').value = '';
-        document.getElementById('sale-total').textContent = 'R$ 0,00';
-        document.getElementById('dish-info').classList.add('d-none');
-        loadSales();
-    } catch(e) { showToast(e.message, 'error'); }
+async function save() {
+  const lines = dishes.filter(d => qtys[d.id] > 0).map(d => ({ item_id: d.id, quantity: qtys[d.id], unit_price: prices[d.id] || 0 }));
+  if (!lines.length) return toast('Nenhuma quantidade informada', 'error');
+  await safe(async () => {
+    const r = await api.registerSales({ day: $('s-day').value || null, lines });
+    toast(`${r.created} lançamento(s), total ${brl(r.total)}. Estoque atualizado.`);
+    r.warnings.forEach(w => toast(w, 'warn'));
+    qtys = {}; $('paste').value = ''; $('paste-result').innerHTML = '';
+    renderGrid(); loadHist();
+  });
+}
+
+async function loadHist() {
+  const rows = await api.sales();
+  $('hist').innerHTML = rows.length ? rows.map(s => `<tr><td class="small text-muted">${dt(s.date)}</td><td>${esc(s.item_name)}</td>
+      <td class="num">× ${num(s.quantity, 1)}</td><td class="num">${brl(s.total)}</td>
+      <td><button class="btn btn-sm btn-link text-danger p-0" title="Desfazer (devolve ao estoque)" onclick="undo(${s.id})"><i class="bi bi-arrow-counterclockwise"></i></button></td></tr>`).join('')
+    : '<tr><td class="text-center text-muted py-3">Nenhuma venda</td></tr>';
+}
+
+async function undo(id) {
+  if (!confirm('Desfazer este lançamento? As porções voltam para o estoque.')) return;
+  await safe(async () => { await api.undoSale(id); toast('Lançamento desfeito'); loadHist(); });
 }
 
 load();

@@ -1,0 +1,179 @@
+"""
+Testes do fluxo da cozinha: compra → produção → venda → reposição.
+Rodar: python -m pytest -q
+"""
+import os
+import tempfile
+
+import pytest
+
+_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+os.environ["COZINHA_DB"] = f"sqlite:///{_db.name}"
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.database import Base, engine  # noqa: E402
+from app.main import app  # noqa: E402
+
+client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def fresh_db():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+def item(**kw):
+    r = client.post("/api/items", json=kw)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def get(id):
+    return client.get(f"/api/items/{id}").json()
+
+
+def montar_coxao():
+    coxao = item(name="Coxão mole (peça)", kind="compra", unit="kg")
+    emb = item(name="Embalagem", kind="compra", unit="un")
+    bife = item(name="Bife coxão 129g", kind="producao", unit="un", yield_quantity=6,
+                recipe=[{"component_id": coxao["id"], "quantity": 1}])
+    estrog = item(name="Estrogonofe", kind="venda", selling_price=40,
+                  recipe=[{"component_id": bife["id"], "quantity": 1},
+                          {"component_id": emb["id"], "quantity": 1}])
+    return coxao, emb, bife, estrog
+
+
+def test_compra_atualiza_custo_medio():
+    coxao, *_ = montar_coxao()
+    client.post("/api/stock/purchase", json={"item_id": coxao["id"], "quantity": 10, "total_price": 300})
+    client.post("/api/stock/purchase", json={"item_id": coxao["id"], "quantity": 10, "total_price": 400})
+    c = get(coxao["id"])
+    assert c["stock"] == 20
+    assert c["avg_cost"] == pytest.approx(35.0)
+
+
+def test_producao_usa_rendimento_real_e_calcula_desvio():
+    coxao, emb, bife, _ = montar_coxao()
+    client.post("/api/stock/purchase", json={"item_id": coxao["id"], "quantity": 10, "total_price": 360})
+    # 5 kg brutos deveriam render 30 bifes; rendeu 27 (gordura, aparas)
+    r = client.post("/api/production", json={
+        "item_id": bife["id"], "output_quantity": 27,
+        "inputs": [{"item_id": coxao["id"], "quantity": 5}],
+    })
+    assert r.status_code == 201, r.text
+    p = r.json()
+    assert p["expected_output"] == pytest.approx(30)
+    assert p["deviation_percent"] == pytest.approx(-10.0)
+    assert p["unit_cost"] == pytest.approx(180 / 27, rel=1e-3)
+    assert get(coxao["id"])["stock"] == pytest.approx(5)
+    assert get(bife["id"])["stock"] == pytest.approx(27)
+    assert get(bife["id"])["avg_cost"] == pytest.approx(180 / 27, rel=1e-3)
+
+
+def test_producao_com_ganho_de_peso_arroz():
+    arroz = item(name="Arroz cru", kind="compra", unit="kg")
+    porcao = item(name="Arroz porção 250g", kind="producao", unit="un", yield_quantity=10,
+                  recipe=[{"component_id": arroz["id"], "quantity": 1}])
+    client.post("/api/stock/purchase", json={"item_id": arroz["id"], "quantity": 5, "total_price": 30})
+    p = client.post("/api/production", json={
+        "item_id": porcao["id"], "output_quantity": 21,
+        "inputs": [{"item_id": arroz["id"], "quantity": 2}],
+    }).json()
+    assert p["deviation_percent"] == pytest.approx(5.0)
+    assert p["unit_cost"] == pytest.approx(12 / 21, rel=1e-3)
+
+
+def test_venda_baixa_porcoes_e_embalagem_nao_o_cru():
+    coxao, emb, bife, estrog = montar_coxao()
+    client.post("/api/stock/purchase", json={"item_id": coxao["id"], "quantity": 10, "total_price": 360})
+    client.post("/api/stock/purchase", json={"item_id": emb["id"], "quantity": 100, "total_price": 90})
+    client.post("/api/production", json={"item_id": bife["id"], "output_quantity": 30,
+                                         "inputs": [{"item_id": coxao["id"], "quantity": 5}]})
+    r = client.post("/api/sales", json={"lines": [{"item_id": estrog["id"], "quantity": 4}]})
+    assert r.status_code == 201, r.text
+    assert r.json()["total"] == 160
+    assert get(bife["id"])["stock"] == pytest.approx(26)
+    assert get(emb["id"])["stock"] == pytest.approx(96)
+    assert get(coxao["id"])["stock"] == pytest.approx(5)  # cru não mexe na venda
+
+
+def test_desfazer_venda_devolve_estoque():
+    coxao, emb, bife, estrog = montar_coxao()
+    client.post("/api/production", json={"item_id": bife["id"], "output_quantity": 12,
+                                         "inputs": [{"item_id": coxao["id"], "quantity": 2}]})
+    client.post("/api/sales", json={"lines": [{"item_id": estrog["id"], "quantity": 3}]})
+    sale_id = client.get("/api/sales").json()[0]["id"]
+    assert client.delete(f"/api/sales/{sale_id}").status_code == 204
+    assert get(bife["id"])["stock"] == pytest.approx(12)
+
+
+def test_custo_da_ficha_em_cadeia_peito_bife_file():
+    peito = item(name="Peito de frango", kind="compra", unit="kg", avg_cost=20)
+    bife = item(name="Bife de frango", kind="producao", unit="un", yield_quantity=8,
+                recipe=[{"component_id": peito["id"], "quantity": 1}])
+    tiras = item(name="Tiras de frango", kind="producao", unit="kg", yield_quantity=1,
+                 recipe=[{"component_id": bife["id"], "quantity": 8}])
+    prato = item(name="Estrogonofe de frango", kind="venda", selling_price=30,
+                 recipe=[{"component_id": tiras["id"], "quantity": 0.15}])
+    assert get(bife["id"])["unit_cost"] == pytest.approx(2.5)
+    assert get(tiras["id"])["unit_cost"] == pytest.approx(20)
+    p = get(prato["id"])
+    assert p["unit_cost"] == pytest.approx(3.0)
+    assert p["cmv_percent"] == pytest.approx(10.0)
+
+
+def test_ficha_circular_e_prato_como_componente_sao_bloqueados():
+    a = item(name="A", kind="producao", unit="kg", yield_quantity=1)
+    b = item(name="B", kind="producao", unit="kg", yield_quantity=1,
+             recipe=[{"component_id": a["id"], "quantity": 1}])
+    r = client.put(f"/api/items/{a['id']}", json={"name": "A", "kind": "producao", "unit": "kg",
+                                                  "yield_quantity": 1,
+                                                  "recipe": [{"component_id": b["id"], "quantity": 1}]})
+    assert r.status_code == 400
+    prato = item(name="Prato", kind="venda", recipe=[{"component_id": a["id"], "quantity": 1}])
+    r = client.post("/api/items", json={"name": "C", "kind": "producao", "unit": "kg",
+                                        "recipe": [{"component_id": prato["id"], "quantity": 1}]})
+    assert r.status_code == 400
+
+
+def test_reposicao_desce_pela_cadeia_e_arredonda_pacote():
+    batata = item(name="Batata palito", kind="compra", unit="kg", pack_size=2, pack_label="pacote")
+    porcao = item(name="Batata porção 200g", kind="producao", unit="un", yield_quantity=10,
+                  coverage_days=3, recipe=[{"component_id": batata["id"], "quantity": 2}])
+    frita = item(name="Batata frita", kind="venda", selling_price=15,
+                 recipe=[{"component_id": porcao["id"], "quantity": 1}])
+    client.post("/api/stock/purchase", json={"item_id": batata["id"], "quantity": 2, "total_price": 22})
+    client.post("/api/production", json={"item_id": porcao["id"], "output_quantity": 10,
+                                         "inputs": [{"item_id": batata["id"], "quantity": 2}]})
+    # vende 8 porções: sobra 2
+    client.post("/api/sales", json={"lines": [{"item_id": frita["id"], "quantity": 8}]})
+    rep = client.get("/api/reports/replenishment").json()
+    prod = {r["name"]: r for r in rep["produce"]}
+    buy = {r["name"]: r for r in rep["buy"]}
+    assert "Batata porção 200g" in prod
+    p = prod["Batata porção 200g"]
+    assert p["suggested"] == pytest.approx(p["target"] - 2, abs=1)
+    assert p["suggested"] == int(p["suggested"])
+    # a produção sugerida consome batata que não tem → compra em pacotes de 2 kg
+    b = buy["Batata palito"]
+    assert b["for_production"] > 0
+    assert b["suggested"] % 2 == 0
+    assert b["packs"] == b["suggested"] / 2
+
+
+def test_lote_minimo_nhoque():
+    farinha = item(name="Farinha", kind="compra", unit="kg", avg_cost=5)
+    nhoque = item(name="Nhoque porção", kind="producao", unit="un", yield_quantity=8,
+                  min_batch=16, coverage_days=12,
+                  recipe=[{"component_id": farinha["id"], "quantity": 1}])
+    prato = item(name="Nhoque ao sugo", kind="venda",
+                 recipe=[{"component_id": nhoque["id"], "quantity": 1}])
+    client.post("/api/production", json={"item_id": nhoque["id"], "output_quantity": 2,
+                                         "inputs": [{"item_id": farinha["id"], "quantity": 0.25}]})
+    client.post("/api/sales", json={"lines": [{"item_id": prato["id"], "quantity": 1}]})
+    rep = client.get("/api/reports/replenishment").json()
+    n = next(r for r in rep["produce"] if r["name"] == "Nhoque porção")
+    assert n["suggested"] >= 16

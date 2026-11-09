@@ -3,144 +3,63 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Restaurante — Dashboard</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<style>
-  body { background: #f8f9fa; }
-  .navbar-brand { font-weight: 700; letter-spacing: .5px; }
-  .card-metric { border: none; border-radius: 12px; }
-  .card-metric .metric-value { font-size: 2rem; font-weight: 700; }
-  .badge-complete { background: #198754; }
-  .badge-incomplete { background: #dc3545; }
-</style>
+<title>Cozinha — Painel</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
 </head>
 <body>
-
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container">
-    <a class="navbar-brand" href="/index.html"><i class="bi bi-shop"></i> Restaurante</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link active" href="/index.html"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link" href="/ingredientes.html"><i class="bi bi-basket2"></i> Ingredientes</a></li>
-        <li class="nav-item"><a class="nav-link" href="/preparacoes.html"><i class="bi bi-journal-richtext"></i> Preparações</a></li>
-        <li class="nav-item"><a class="nav-link" href="/vendas.html"><i class="bi bi-cart3"></i> Vendas</a></li>
-        <li class="nav-item"><a class="nav-link" href="/estoque.html"><i class="bi bi-box-seam"></i> Estoque</a></li>
-      </ul>
-    </div>
-  </div>
-</nav>
-
-<div class="container py-4">
-  <h4 class="mb-4 fw-bold">Dashboard</h4>
-
+<div id="nav"></div>
+<main class="container py-4">
+  <h4 class="fw-bold mb-3">Painel</h4>
   <div class="row g-3 mb-4" id="cards"></div>
 
   <div class="row g-4">
-    <div class="col-md-6">
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold"><i class="bi bi-graph-up"></i> Custos por Preparação</div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light">
-                <tr><th>Preparação</th><th>Custo total</th><th>Custo/unid.</th><th>Margem</th><th>Status</th></tr>
-              </thead>
-              <tbody id="costs-body"></tbody>
-            </table>
-          </div>
-        </div>
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold text-danger"><i class="bi bi-exclamation-triangle"></i> Estoque negativo ou abaixo da segurança</div>
+        <div class="card-body p-0"><table class="table table-sm mb-0"><tbody id="alerts"></tbody></table></div>
       </div>
     </div>
-    <div class="col-md-6">
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold text-danger"><i class="bi bi-exclamation-triangle"></i> Alertas de Estoque</div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light">
-                <tr><th>Ingrediente</th><th>Estoque</th><th>Mínimo</th><th>Déficit</th></tr>
-              </thead>
-              <tbody id="alerts-body"></tbody>
-            </table>
-          </div>
-        </div>
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold"><i class="bi bi-graph-down-arrow"></i> Produções fora do rendimento (±5%)</div>
+        <div class="card-body p-0"><table class="table table-sm mb-0"><tbody id="yields"></tbody></table></div>
       </div>
     </div>
   </div>
-</div>
-
-<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</main>
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
 <script src="/js/api.js"></script>
 <script>
-async function load() {
-    const [summary, costs, alerts] = await Promise.all([
-        api.getSummary(),
-        api.getDishCosts(),
-        api.getStockAlerts(),
-    ]);
+renderNav('index');
+const $ = id => document.getElementById(id);
 
-    document.getElementById('cards').innerHTML = `
-        <div class="col-6 col-md-3">
-          <div class="card card-metric shadow-sm text-center p-3">
-            <div class="text-muted small">Preparações</div>
-            <div class="metric-value text-primary">${summary.total_dishes}</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="card card-metric shadow-sm text-center p-3">
-            <div class="text-muted small">Ingredientes</div>
-            <div class="metric-value text-secondary">${summary.total_ingredients}</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="card card-metric shadow-sm text-center p-3">
-            <div class="text-muted small">Alertas de Estoque</div>
-            <div class="metric-value ${summary.low_stock_alerts > 0 ? 'text-danger' : 'text-success'}">${summary.low_stock_alerts}</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="card card-metric shadow-sm text-center p-3">
-            <div class="text-muted small">Vendas Hoje</div>
-            <div class="metric-value text-success">${brl(summary.today_sales)}</div>
-          </div>
-        </div>`;
-
-    const costsBody = document.getElementById('costs-body');
-    if (!costs.length) {
-        costsBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Nenhuma preparação cadastrada</td></tr>';
-    } else {
-        costsBody.innerHTML = costs.map(d => `
-            <tr>
-              <td>${d.name}</td>
-              <td>${brl(d.total_cost)}</td>
-              <td>${d.cost_per_yield_unit != null ? brl(d.cost_per_yield_unit) + '/' + (d.yield_unit || 'un') : '—'}</td>
-              <td>${pct(d.margin_percent)}</td>
-              <td><span class="badge ${d.is_complete ? 'badge-complete' : 'badge-incomplete'}">${d.is_complete ? 'Completo' : 'Incompleto'}</span></td>
-            </tr>`).join('');
-    }
-
-    const alertsBody = document.getElementById('alerts-body');
-    if (!alerts.length) {
-        alertsBody.innerHTML = '<tr><td colspan="4" class="text-center text-success py-3"><i class="bi bi-check-circle"></i> Estoque OK</td></tr>';
-    } else {
-        alertsBody.innerHTML = alerts.map(a => `
-            <tr class="table-danger">
-              <td>${a.name}</td>
-              <td>${num(a.stock_quantity)} ${a.unit}</td>
-              <td>${num(a.min_stock)} ${a.unit}</td>
-              <td class="fw-bold">${num(a.deficit)} ${a.unit}</td>
-            </tr>`).join('');
-    }
+function card(href, label, value, cls, sub = '') {
+  return `<div class="col-6 col-lg-3"><a href="${href}" class="text-decoration-none"><div class="card shadow-sm p-3 h-100">
+    <div class="help">${label}</div><div class="metric ${cls}">${value}</div><div class="help">${sub}</div></div></a></div>`;
 }
 
-load();
+async function load() {
+  const s = await api.summary();
+  $('cards').innerHTML =
+    card('/vendas.html', 'Vendas hoje', brl(s.sales_today_total), 'text-success', `${num(s.sales_today_count, 1)} pratos`) +
+    card('/reposicao.html', 'Itens para produzir', s.to_produce, s.to_produce ? 'text-primary' : 'text-success', 'ver lista de produção') +
+    card('/reposicao.html', 'Itens para comprar', s.to_buy, s.to_buy ? 'text-primary' : 'text-success', `estimado ${brl(s.buy_total)}`) +
+    card('/estoque.html', 'Estoque negativo', s.negative.length, s.negative.length ? 'text-danger' : 'text-success', s.adjust_loss_value ? `perdas em contagem: ${brl(s.adjust_loss_value)}` : 'falta lançar produção/compra?');
+
+  const alerts = [...s.negative.map(i => [i, 'Negativo', 'danger']), ...s.low.map(i => [i, 'Abaixo da segurança', 'warning'])];
+  $('alerts').innerHTML = alerts.length ? alerts.map(([i, l, c]) => `<tr><td>${esc(i.name)}</td><td class="num">${qty(i.stock, i.unit)}</td><td><span class="badge bg-${c}">${l}</span></td></tr>`).join('')
+    : '<tr><td class="text-center text-success py-3"><i class="bi bi-check-circle"></i> Tudo certo</td></tr>';
+
+  $('yields').innerHTML = s.off_yield.length ? s.off_yield.map(p => `<tr><td class="small text-muted">${dt(p.date)}</td><td>${esc(p.item_name)}</td>
+      <td class="num">${qty(p.output, p.unit)} <span class="help">de ${qty(p.expected, p.unit)}</span></td>
+      <td class="num ${p.deviation_percent < 0 ? 'text-danger fw-bold' : 'text-success'}">${p.deviation_percent > 0 ? '+' : ''}${pct(p.deviation_percent)}</td></tr>`).join('')
+    : '<tr><td class="text-center text-muted py-3">Nenhum desvio relevante</td></tr>';
+}
+
+safe(load);
 </script>
 </body>
 </html>

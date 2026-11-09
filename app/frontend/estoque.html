@@ -3,178 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Restaurante — Estoque</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<style>body { background: #f8f9fa; }</style>
+<title>Cozinha — Estoque</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
 </head>
 <body>
-
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container">
-    <a class="navbar-brand" href="/index.html"><i class="bi bi-shop"></i> Restaurante</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" href="/index.html"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link" href="/ingredientes.html"><i class="bi bi-basket2"></i> Ingredientes</a></li>
-        <li class="nav-item"><a class="nav-link" href="/preparacoes.html"><i class="bi bi-journal-richtext"></i> Preparações</a></li>
-        <li class="nav-item"><a class="nav-link" href="/vendas.html"><i class="bi bi-cart3"></i> Vendas</a></li>
-        <li class="nav-item"><a class="nav-link active" href="/estoque.html"><i class="bi bi-box-seam"></i> Estoque</a></li>
-      </ul>
+<div id="nav"></div>
+<main class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h4 class="fw-bold mb-0"><i class="bi bi-box-seam"></i> Estoque</h4>
+    <div class="d-flex gap-2">
+      <select class="form-select form-select-sm" id="f-kind" style="width:auto">
+        <option value="">Todos</option><option value="compra">Comprados</option><option value="producao">Produzidos</option>
+      </select>
+      <input class="form-control form-control-sm" id="f-text" placeholder="Filtrar..." style="max-width:180px">
     </div>
   </div>
-</nav>
 
-<div class="container py-4">
-  <h4 class="fw-bold mb-4"><i class="bi bi-box-seam"></i> Controle de Estoque</h4>
-
-  <div class="row g-4">
-    <!-- Posição atual -->
-    <div class="col-md-8">
-      <div class="card shadow-sm mb-4">
-        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-          Posição Atual
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="show-alerts" onchange="renderStock()">
-            <label class="form-check-label small" for="show-alerts">Apenas alertas</label>
-          </div>
-        </div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-              <thead class="table-dark">
-                <tr><th>Ingrediente</th><th>Estoque atual</th><th>Mínimo</th><th>Status</th><th></th></tr>
-              </thead>
-              <tbody id="stock-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Movimentações recentes -->
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold">Últimas Movimentações</div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light">
-                <tr><th>Data/Hora</th><th>Ingrediente</th><th>Tipo</th><th>Quantidade</th><th>Observação</th></tr>
-              </thead>
-              <tbody id="mov-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Entrada manual -->
-    <div class="col-md-4">
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold"><i class="bi bi-plus-circle"></i> Entrada de Estoque</div>
-        <div class="card-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Ingrediente *</label>
-            <select class="form-select" id="entry-ing"></select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Quantidade *</label>
-            <input type="number" class="form-control" id="entry-qty" min="0.001" step="0.001" placeholder="ex: 5">
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Observação</label>
-            <input type="text" class="form-control" id="entry-notes" placeholder="ex: Compra mercado, NF 001">
-          </div>
-          <button class="btn btn-success w-100" onclick="addEntry()">
-            <i class="bi bi-plus-lg"></i> Dar Entrada
-          </button>
-        </div>
-      </div>
+  <div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark"><tr><th>Item</th><th>Tipo</th><th class="num">Estoque</th><th class="num">Segurança</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
     </div>
   </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header fw-semibold">Últimas movimentações</div>
+    <div class="table-responsive" style="max-height:480px">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light"><tr><th>Data</th><th>Item</th><th>Tipo</th><th class="num">Qtd</th><th class="num">Custo unit.</th><th>Obs.</th></tr></thead>
+        <tbody id="mov"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div class="modal fade" id="mBuy" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Entrada de compra</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <p class="fw-semibold" id="b-name"></p>
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label">Quantidade bruta total *</label>
+          <div class="input-group"><input class="form-control" id="b-qty" inputmode="decimal"><span class="input-group-text" id="b-unit"></span></div>
+          <div class="help" id="b-pack"></div></div>
+        <div class="col-6"><label class="form-label">Valor total pago (R$) *</label>
+          <input class="form-control" id="b-total" inputmode="decimal"></div>
+      </div>
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label">Data</label><input type="date" class="form-control" id="b-day"></div>
+        <div class="col-6"><label class="form-label">Obs. / NF</label><input class="form-control" id="b-notes"></div>
+      </div>
+      <div class="help mt-2" id="b-preview"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+      <button class="btn btn-success" onclick="saveBuy()">Dar entrada</button></div>
+  </div></div>
 </div>
 
-<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
+<div class="modal fade" id="mCount" tabindex="-1">
+  <div class="modal-dialog modal-sm"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Contagem</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <p class="fw-semibold mb-1" id="c-name"></p>
+      <p class="help" id="c-system"></p>
+      <label class="form-label">Quantidade contada *</label>
+      <div class="input-group mb-2"><input class="form-control" id="c-qty" inputmode="decimal"><span class="input-group-text" id="c-unit"></span></div>
+      <input class="form-control" id="c-notes" placeholder="Motivo (opcional)">
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+      <button class="btn btn-warning" onclick="saveCount()">Acertar estoque</button></div>
+  </div></div>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
 <script src="/js/api.js"></script>
 <script>
-let ingredients = [];
+renderNav('estoque');
+const $ = id => document.getElementById(id);
+let items = [], sel = null;
+$('f-kind').onchange = render; $('f-text').oninput = render;
+['b-qty', 'b-total'].forEach(id => $(id).oninput = previewBuy);
 
 async function load() {
-    [ingredients] = await Promise.all([api.getIngredients()]);
-    renderStock();
-    renderEntry();
-    loadMovements();
+  items = (await api.items()).filter(i => i.kind !== 'venda' && i.active);
+  render(); loadMov();
 }
 
-function renderStock() {
-    const onlyAlerts = document.getElementById('show-alerts').checked;
-    const list = onlyAlerts ? ingredients.filter(i => i.is_low_stock) : ingredients;
-    const tbody = document.getElementById('stock-body');
-    if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-${onlyAlerts ? 'success' : 'muted'} py-3">${onlyAlerts ? '<i class="bi bi-check-circle"></i> Estoque OK — nenhum alerta' : 'Nenhum ingrediente cadastrado'}</td></tr>`;
-        return;
-    }
-    tbody.innerHTML = list.map(i => `
-        <tr class="${i.is_low_stock ? 'table-danger' : ''}">
-          <td class="fw-semibold">${i.name}</td>
-          <td>${num(i.stock_quantity)} ${i.unit}</td>
-          <td>${num(i.min_stock)} ${i.unit}</td>
-          <td>${i.is_low_stock
-              ? `<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Baixo (−${num(i.min_stock - i.stock_quantity)} ${i.unit})</span>`
-              : '<span class="badge bg-success">OK</span>'}</td>
-          <td><button class="btn btn-sm btn-outline-success" onclick="quickEntry(${i.id})"><i class="bi bi-plus"></i></button></td>
-        </tr>`).join('');
+function render() {
+  const k = $('f-kind').value, f = norm($('f-text').value);
+  const rows = items.filter(i => (!k || i.kind === k) && (!f || norm(i.name).includes(f)))
+    .sort((a, b) => ((b.stock < 0) - (a.stock < 0)) || a.name.localeCompare(b.name));
+  $('tbody').innerHTML = rows.length ? rows.map(i => {
+    const cost = i.avg_cost || i.unit_cost || 0;
+    const st = i.stock < -1e-9 ? '<span class="badge bg-danger">Negativo</span>'
+      : i.stock < i.min_stock ? '<span class="badge bg-warning text-dark">Abaixo da segurança</span>'
+      : '<span class="badge bg-success">OK</span>';
+    return `<tr><td class="fw-semibold">${esc(i.name)}</td><td><span class="badge kind-${i.kind}">${KIND_LABEL[i.kind]}</span></td>
+      <td class="num ${i.stock < 0 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td><td class="num">${i.min_stock ? qty(i.min_stock, i.unit) : '—'}</td>
+      <td class="num">${brl(Math.max(i.stock, 0) * cost)}</td><td>${st}</td>
+      <td class="text-end text-nowrap">
+        <button class="btn btn-sm btn-outline-success" onclick="openBuy(${i.id})" title="Entrada de compra"><i class="bi bi-cart-plus"></i></button>
+        <button class="btn btn-sm btn-outline-warning" onclick="openCount(${i.id})" title="Contagem"><i class="bi bi-123"></i></button></td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum item</td></tr>';
 }
 
-function renderEntry() {
-    const sel = document.getElementById('entry-ing');
-    sel.innerHTML = ingredients.map(i => `<option value="${i.id}">${i.name} (${i.unit}) — atual: ${num(i.stock_quantity)}</option>`).join('');
+async function loadMov() {
+  const rows = await api.movements('?limit=150');
+  $('mov').innerHTML = rows.length ? rows.map(m => {
+    const [label, color] = MOV_LABEL[m.type] || [m.type, 'secondary'];
+    return `<tr><td class="small text-muted">${dt(m.date)}</td><td>${esc(m.item_name)}</td><td><span class="badge bg-${color}">${label}</span></td>
+      <td class="num ${m.quantity < 0 ? 'text-danger' : 'text-success'}">${m.quantity > 0 ? '+' : ''}${qty(m.quantity, m.unit)}</td>
+      <td class="num">${brl(m.unit_cost)}</td><td class="small text-muted">${esc(m.notes || '')}</td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="text-center text-muted py-3">Nenhuma movimentação</td></tr>';
 }
 
-async function loadMovements() {
-    const movements = await api.getMovementsAll();
-    const tbody = document.getElementById('mov-body');
-    if (!movements.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Nenhuma movimentação</td></tr>';
-        return;
-    }
-    tbody.innerHTML = movements.map(m => `
-        <tr>
-          <td class="small">${new Date(m.date).toLocaleString('pt-BR')}</td>
-          <td>${m.ingredient_name}</td>
-          <td><span class="badge ${m.movement_type === 'in' ? 'bg-success' : 'bg-danger'}">
-            ${m.movement_type === 'in' ? '<i class="bi bi-arrow-down-circle"></i> Entrada' : '<i class="bi bi-arrow-up-circle"></i> Saída'}
-          </span></td>
-          <td>${m.movement_type === 'out' ? '−' : '+'}${num(m.quantity)}</td>
-          <td class="small text-muted">${m.notes || '—'}</td>
-        </tr>`).join('');
+function openBuy(id) {
+  sel = items.find(i => i.id === id);
+  $('b-name').textContent = sel.name; $('b-unit').textContent = sel.unit;
+  $('b-qty').value = sel.pack_size || ''; $('b-total').value = ''; $('b-notes').value = ''; $('b-day').value = todayISO();
+  $('b-pack').textContent = sel.pack_size ? `1 ${sel.pack_label || 'emb.'} = ${qty(sel.pack_size, sel.unit)}` : 'Peso bruto, como chegou';
+  previewBuy();
+  bootstrap.Modal.getOrCreateInstance($('mBuy')).show();
+}
+function previewBuy() {
+  const q = parseNum($('b-qty').value), t = parseNum($('b-total').value);
+  $('b-preview').textContent = q && t != null ? `= ${brl(t / q)} por ${sel.unit}` + (sel.avg_cost ? ` (média atual ${brl(sel.avg_cost)})` : '') : '';
+}
+async function saveBuy() {
+  const q = parseNum($('b-qty').value), t = parseNum($('b-total').value);
+  if (!(q > 0) || t == null) return toast('Informe quantidade e valor', 'error');
+  await safe(async () => {
+    const r = await api.purchase({ item_id: sel.id, quantity: q, total_price: t, day: $('b-day').value || null, notes: $('b-notes').value.trim() || null });
+    toast(`Entrada registrada. Novo custo médio: ${brl(r.avg_cost)}/${sel.unit}`);
+    bootstrap.Modal.getOrCreateInstance($('mBuy')).hide(); load();
+  });
 }
 
-function quickEntry(id) {
-    document.getElementById('entry-ing').value = id;
-    document.getElementById('entry-qty').focus();
+function openCount(id) {
+  sel = items.find(i => i.id === id);
+  $('c-name').textContent = sel.name; $('c-unit').textContent = sel.unit;
+  $('c-system').textContent = `No sistema: ${qty(sel.stock, sel.unit)}`;
+  $('c-qty').value = ''; $('c-notes').value = '';
+  bootstrap.Modal.getOrCreateInstance($('mCount')).show();
 }
-
-async function addEntry() {
-    const ingId = parseInt(document.getElementById('entry-ing').value);
-    const qty = parseFloat(document.getElementById('entry-qty').value);
-    const notes = document.getElementById('entry-notes').value.trim();
-    if (!ingId) { showToast('Selecione o ingrediente', 'error'); return; }
-    if (!qty || qty <= 0) { showToast('Informe a quantidade', 'error'); return; }
-    try {
-        await api.addStock(ingId, { ingredient_id: ingId, quantity: qty, notes: notes || null });
-        showToast('Estoque atualizado');
-        document.getElementById('entry-qty').value = '';
-        document.getElementById('entry-notes').value = '';
-        [ingredients] = await Promise.all([api.getIngredients()]);
-        renderStock();
-        renderEntry();
-        loadMovements();
-    } catch(e) { showToast(e.message, 'error'); }
+async function saveCount() {
+  const q = parseNum($('c-qty').value);
+  if (q == null || q < 0) return toast('Informe a quantidade contada', 'error');
+  await safe(async () => {
+    const r = await api.adjust({ item_id: sel.id, counted_quantity: q, notes: $('c-notes').value.trim() || null });
+    toast(r.difference ? `Diferença de ${qty(r.difference, sel.unit)} (${brl(r.difference_value)})` : 'Estoque confere', r.difference < 0 ? 'warn' : 'success');
+    bootstrap.Modal.getOrCreateInstance($('mCount')).hide(); load();
+  });
 }
 
 load();

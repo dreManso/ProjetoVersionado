@@ -1,100 +1,109 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.orm import relationship
+"""
+Modelo único de "Item" com três tipos:
+
+  compra    → insumo comprado (coxão mole em peça, arroz cru, batata em pacote,
+              embalagem, lacre, saco de entrega...). Tem estoque e custo médio.
+  producao  → subproduto feito na cozinha (bife 129 g, porção de arroz 250 g,
+              nhoque congelado, porção de batata 200 g, frango desfiado...).
+              Tem ficha técnica (o que entra em UMA receita/lote), rendimento
+              e estoque próprio.
+  venda     → prato do cardápio. Tem ficha técnica (o que vai em 1 prato) e
+              preço. Não tem estoque: é montado na hora com as porções.
+
+Toda quantidade de ficha técnica está na unidade do componente.
+"""
 from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
 from .database import Base
 
-
-class Ingredient(Base):
-    __tablename__ = "ingredients"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    unit = Column(String(20), nullable=False)
-    cost_per_unit = Column(Float, nullable=False)
-    stock_quantity = Column(Float, default=0.0)
-    min_stock = Column(Float, default=0.0)
-
-    components = relationship(
-        "DishComponent",
-        back_populates="ingredient",
-        foreign_keys="DishComponent.ingredient_id"
-    )
-    stock_movements = relationship("StockMovement", back_populates="ingredient")
+KINDS = ("compra", "producao", "venda")
+UNITS = ("kg", "g", "L", "mL", "un")
 
 
-class Dish(Base):
-    __tablename__ = "dishes"
+class Item(Base):
+    __tablename__ = "items"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    description = Column(Text)
-    preparation_steps = Column(Text)
-    # rendimento real da receita (informado após preparação)
-    yield_quantity = Column(Float, nullable=True)
-    yield_unit = Column(String(20), nullable=True)
-    selling_price = Column(Float, nullable=True)
-    is_sellable = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    name = Column(String(120), nullable=False, unique=True)
+    kind = Column(String(10), nullable=False)
+    unit = Column(String(5), nullable=False, default="un")
+    stock = Column(Float, nullable=False, default=0.0)
+    min_stock = Column(Float, nullable=False, default=0.0)        # estoque de segurança
+    coverage_days = Column(Float, nullable=False, default=6.0)    # dias de trabalho a cobrir
+    avg_cost = Column(Float, nullable=False, default=0.0)         # custo médio real por unidade
+    yield_quantity = Column(Float, nullable=True)                 # producao: rende por receita
+    min_batch = Column(Float, nullable=False, default=0.0)        # producao: lote mínimo
+    pack_size = Column(Float, nullable=True)                      # compra: tamanho da embalagem
+    pack_label = Column(String(30), nullable=True)                # compra: "pacote", "caixa"...
+    selling_price = Column(Float, nullable=True)                  # venda
+    notes = Column(Text, nullable=True)
+    active = Column(Boolean, nullable=False, default=True)
 
-    # componentes que este prato usa
-    components = relationship(
-        "DishComponent",
-        back_populates="dish",
-        foreign_keys="DishComponent.dish_id",
-        cascade="all, delete-orphan"
+    recipe = relationship(
+        "RecipeLine",
+        foreign_keys="RecipeLine.parent_id",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        order_by="RecipeLine.position",
     )
-    # onde este prato é usado como subproduto
-    used_as_component = relationship(
-        "DishComponent",
-        back_populates="sub_dish",
-        foreign_keys="DishComponent.sub_dish_id"
-    )
-    sales = relationship("Sale", back_populates="dish")
 
 
-class DishComponent(Base):
-    """
-    Componente de um prato: pode ser um ingrediente bruto OU um subproduto (outro prato).
-    Exatamente um dos dois (ingredient_id ou sub_dish_id) deve ser preenchido.
-    """
-    __tablename__ = "dish_components"
+class RecipeLine(Base):
+    __tablename__ = "recipe_lines"
 
-    id = Column(Integer, primary_key=True, index=True)
-    dish_id = Column(Integer, ForeignKey("dishes.id"), nullable=False)
-    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=True)
-    sub_dish_id = Column(Integer, ForeignKey("dishes.id"), nullable=True)
-    quantity = Column(Float, nullable=False)
-    unit = Column(String(20), nullable=False)
+    id = Column(Integer, primary_key=True)
+    parent_id = Column(Integer, ForeignKey("items.id"), nullable=False)
+    component_id = Column(Integer, ForeignKey("items.id"), nullable=False)
+    quantity = Column(Float, nullable=False)  # na unidade do componente
+    position = Column(Integer, nullable=False, default=0)
 
-    dish = relationship("Dish", back_populates="components", foreign_keys=[dish_id])
-    ingredient = relationship("Ingredient", back_populates="components", foreign_keys=[ingredient_id])
-    sub_dish = relationship("Dish", back_populates="used_as_component", foreign_keys=[sub_dish_id])
+    parent = relationship("Item", foreign_keys=[parent_id], back_populates="recipe")
+    component = relationship("Item", foreign_keys=[component_id])
+
+
+class Production(Base):
+    __tablename__ = "productions"
+
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
+    output_quantity = Column(Float, nullable=False)     # rendimento real
+    expected_output = Column(Float, nullable=True)      # rendimento pela ficha
+    input_cost = Column(Float, nullable=False, default=0.0)
+    date = Column(DateTime, nullable=False, default=datetime.now)
+    notes = Column(String(255))
+
+    item = relationship("Item")
 
 
 class Sale(Base):
     __tablename__ = "sales"
 
-    id = Column(Integer, primary_key=True, index=True)
-    dish_id = Column(Integer, ForeignKey("dishes.id"), nullable=False)
-    quantity_sold = Column(Float, nullable=False)
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
+    quantity = Column(Float, nullable=False)
     unit_price = Column(Float, nullable=False)
     total = Column(Float, nullable=False)
-    date = Column(DateTime, default=datetime.utcnow)
+    date = Column(DateTime, nullable=False, default=datetime.now)
 
-    dish = relationship("Dish", back_populates="sales")
-    stock_movements = relationship("StockMovement", back_populates="sale")
+    item = relationship("Item")
 
 
-class StockMovement(Base):
-    __tablename__ = "stock_movements"
+class Movement(Base):
+    """Toda alteração de estoque. quantity > 0 entra, < 0 sai."""
+    __tablename__ = "movements"
 
-    id = Column(Integer, primary_key=True, index=True)
-    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=False)
-    movement_type = Column(String(10), nullable=False)  # "in" | "out"
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+    # compra | producao_entrada | producao_consumo | venda | ajuste
+    type = Column(String(20), nullable=False)
     quantity = Column(Float, nullable=False)
-    date = Column(DateTime, default=datetime.utcnow)
+    unit_cost = Column(Float, nullable=True)
+    date = Column(DateTime, nullable=False, default=datetime.now, index=True)
     notes = Column(String(255))
+    production_id = Column(Integer, ForeignKey("productions.id"), nullable=True)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True)
 
-    ingredient = relationship("Ingredient", back_populates="stock_movements")
-    sale = relationship("Sale", back_populates="stock_movements")
+    item = relationship("Item")
