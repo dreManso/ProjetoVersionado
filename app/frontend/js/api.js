@@ -37,7 +37,7 @@ const api = {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const brl = v => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const num = (v, d = 3) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d });
-const qty = (v, unit) => v == null ? '—' : `${num(v, unit === 'un' ? 1 : 3)} ${unit || ''}`;
+const qty = (v, unit) => v == null ? '—' : `${num(v, ['un', 'g', 'mL'].includes(unit) ? 1 : 3)} ${unit || ''}`;
 const pct = v => v == null ? '—' : `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 const dt  = v => v ? new Date(v).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 const todayISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };

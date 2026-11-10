@@ -52,6 +52,7 @@ def serialize(item: Item, memo=None) -> dict:
         "portion_unit": item.portion_unit,
         "units": item_units(item),
         "min_batch": item.min_batch,
+        "loss_percent": item.loss_percent or 0.0,
         "pack_size": item.pack_size,
         "pack_label": item.pack_label,
         "selling_price": item.selling_price,
@@ -63,6 +64,9 @@ def serialize(item: Item, memo=None) -> dict:
                 "component_name": l.component.name,
                 "component_unit": l.component.unit,
                 "quantity": l.quantity,
+                "gross_quantity": round(l.gross_quantity, 6),
+                "loss_percent": l.loss_percent,
+                "effective_loss": l.effective_loss,
                 **display_line(l),
             }
             for l in item.recipe
@@ -112,6 +116,7 @@ def _apply(db: Session, item: Item, data: ItemIn):
     item.kind = data.kind
     item.unit = "un" if data.kind == "venda" else data.unit
     item.min_stock = data.min_stock
+    item.loss_percent = data.loss_percent if data.kind != "venda" else 0.0
     item.coverage_days = data.coverage_days
     # porção com peso (só itens produzidos contados em "un")
     if data.kind == "producao" and item.unit == "un" and data.portion_size and data.portion_unit in ("g", "kg", "mL", "L"):
@@ -136,7 +141,7 @@ def _apply(db: Session, item: Item, data: ItemIn):
     if data.avg_cost is not None:
         item.avg_cost = data.avg_cost
     item.recipe = [
-        RecipeLine(component_id=l.component_id, quantity=q, unit=l.unit, position=i)
+        RecipeLine(component_id=l.component_id, quantity=q, unit=l.unit, loss_percent=l.loss_percent, position=i)
         for i, (l, q) in enumerate(zip(data.recipe, quantities))
     ]
 

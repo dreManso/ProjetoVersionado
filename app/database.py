@@ -26,6 +26,8 @@ def init_db():
         ("items", "yield_unit", "VARCHAR(5)"),    # 2.4.0: rendimento digitado em kg/g
         ("items", "portion_size", "FLOAT"),       # 2.4.0: peso da porção
         ("items", "portion_unit", "VARCHAR(5)"),
+        ("items", "loss_percent", "FLOAT NOT NULL DEFAULT 0"),   # 2.5.0: perda no preparo
+        ("recipe_lines", "loss_percent", "FLOAT"),
     ]
     with engine.begin() as conn:
         for table, column, sqltype in new_columns:

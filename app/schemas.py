@@ -11,6 +11,7 @@ class RecipeLineIn(BaseModel):
     component_id: int
     quantity: float = Field(gt=0)
     unit: Optional[Unit] = None  # se diferente da unidade do componente, é convertida (g→kg...)
+    loss_percent: Optional[float] = Field(None, ge=0, le=95)  # perda nesta receita; vazio = padrão do item
 
 
 class ItemIn(BaseModel):
@@ -25,6 +26,7 @@ class ItemIn(BaseModel):
     portion_size: Optional[float] = Field(None, gt=0)   # peso/volume de cada porção (itens em "un")
     portion_unit: Optional[Unit] = None
     min_batch: float = Field(0.0, ge=0)
+    loss_percent: float = Field(0.0, ge=0, le=95)  # perda no preparo (casca, descongelamento...)
     pack_size: Optional[float] = Field(None, gt=0)
     pack_label: Optional[str] = None
     selling_price: Optional[float] = Field(None, ge=0)

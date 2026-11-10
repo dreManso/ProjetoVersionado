@@ -2,6 +2,12 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.5.0 — 10/11/2026
+- Perda no preparo (fator de correção): cada item pode ter uma perda padrão (ex.: cebola 10% de casca, peito congelado 20% no descongelamento).
+- Na ficha técnica, a quantidade é a LIMPA; o app calcula o bruto que sai do estoque e o custo real. Cada receita pode ter uma perda diferente para o item.
+- Venda, produção e lista de reposição passam a usar o peso bruto.
+- Itens comprados mostram também o custo por kg aproveitável.
+
 ## 2.4.0 — 10/11/2026
 - Itens produzidos em porções podem ter o peso de cada porção (ex.: 300 g).
 - Rendimento da receita em porções ou em kg pronto: 3 kg de macarrão cozido = 10 porções de 300 g.

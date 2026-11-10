@@ -39,6 +39,7 @@ class Item(Base):
     portion_size = Column(Float, nullable=True)                   # producao em "un": peso/volume de cada porção
     portion_unit = Column(String(5), nullable=True)               # g, kg, mL ou L
     min_batch = Column(Float, nullable=False, default=0.0)        # producao: lote mínimo
+    loss_percent = Column(Float, nullable=False, default=0.0)     # perda no preparo (casca, descongelamento...)
     pack_size = Column(Float, nullable=True)                      # compra: tamanho da embalagem
     pack_label = Column(String(30), nullable=True)                # compra: "pacote", "caixa"...
     selling_price = Column(Float, nullable=True)                  # venda
@@ -62,10 +63,21 @@ class RecipeLine(Base):
     component_id = Column(Integer, ForeignKey("items.id"), nullable=False)
     quantity = Column(Float, nullable=False)  # sempre na unidade de estoque do componente
     unit = Column(String(5), nullable=True)   # unidade em que foi digitada (só para exibir: 1500 g)
+    loss_percent = Column(Float, nullable=True)  # perda nesta receita; vazio = perda padrão do item
     position = Column(Integer, nullable=False, default=0)
 
     parent = relationship("Item", foreign_keys=[parent_id], back_populates="recipe")
     component = relationship("Item", foreign_keys=[component_id])
+
+    @property
+    def effective_loss(self) -> float:
+        v = self.loss_percent if self.loss_percent is not None else (self.component.loss_percent or 0.0)
+        return min(max(v or 0.0, 0.0), 95.0)
+
+    @property
+    def gross_quantity(self) -> float:
+        """Quantidade bruta que sai do estoque: líquida ÷ (1 − perda). Ex.: 500 g limpos, 10% casca → 555,6 g."""
+        return self.quantity / (1 - self.effective_loss / 100)
 
 
 class Production(Base):

@@ -261,3 +261,29 @@ def test_porcao_com_peso_rendimento_em_kg():
     r = client.post("/api/items", json={"name": "Sem peso", "kind": "producao", "unit": "un",
                                         "yield_quantity": 3, "yield_unit": "kg"})
     assert r.status_code == 400
+
+
+def test_perda_no_preparo_custo_e_baixa_pelo_bruto():
+    cebola = item(name="Cebola", kind="compra", unit="kg", avg_cost=9.0, loss_percent=10)
+    peito = item(name="Peito congelado", kind="compra", unit="kg", avg_cost=18.0, loss_percent=20)
+    molho = item(name="Molho", kind="producao", unit="g", yield_quantity=1000, recipe=[
+        {"component_id": cebola["id"], "quantity": 450, "unit": "g"},                     # usa 10% do item
+        {"component_id": peito["id"], "quantity": 400, "unit": "g", "loss_percent": 25},   # sobrescreve na receita
+    ])
+    l_ceb, l_pei = molho["recipe"]
+    assert l_ceb["effective_loss"] == 10 and l_ceb["loss_percent"] is None
+    assert l_ceb["gross_quantity"] == pytest.approx(0.5)            # 450 g limpos ÷ 0,9 = 500 g brutos
+    assert l_pei["gross_quantity"] == pytest.approx(0.4 / 0.75)
+    assert (l_ceb["display_quantity"], l_ceb["display_unit"]) == (450, "g")
+    custo = 0.5 * 9.0 + (0.4 / 0.75) * 18.0
+    assert molho["unit_cost"] == pytest.approx(custo / 1000, rel=1e-4)
+    # prato com 300 g limpos de peito: a venda baixa o bruto (300 ÷ 0,8 = 375 g)
+    prato = item(name="Frango grelhado", kind="venda", selling_price=30,
+                 recipe=[{"component_id": peito["id"], "quantity": 300, "unit": "g"}])
+    client.post("/api/stock/purchase", json={"item_id": peito["id"], "quantity": 10, "total_price": 180})
+    client.post("/api/sales", json={"lines": [{"item_id": prato["id"], "quantity": 2}]})
+    assert get(peito["id"])["stock"] == pytest.approx(10 - 2 * 0.375)
+    assert get(prato["id"])["unit_cost"] == pytest.approx(0.375 * 18.0)
+    # mudar a perda padrão do item atualiza as fichas que usam o padrão
+    client.put(f"/api/items/{cebola['id']}", json={"name": "Cebola", "kind": "compra", "unit": "kg", "loss_percent": 0})
+    assert get(molho["id"])["recipe"][0]["gross_quantity"] == pytest.approx(0.45)

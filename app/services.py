@@ -133,7 +133,7 @@ def unit_cost(item: Item, _memo=None, _stack=None):
             c, sub = unit_cost(line.component, memo, stack)
             issues += sub
             if c is not None:
-                total += c * line.quantity
+                total += c * line.gross_quantity
         stack.discard(item.id)
         if not item.recipe:
             issues.append(f"{item.name}: ficha técnica vazia")
@@ -165,11 +165,13 @@ def cost_breakdown(item: Item) -> dict:
             "name": line.component.name,
             "kind": line.component.kind,
             "quantity": line.quantity,
+            "gross_quantity": round(line.gross_quantity, 6),
+            "loss_percent": line.effective_loss,
             "unit": line.component.unit,
             "display_quantity": round(shown_qty, 6),
             "display_unit": shown_unit,
             "unit_cost": None if c is None else round(c, 6),
-            "total": None if c is None else round(c * line.quantity, 4),
+            "total": None if c is None else round(c * line.gross_quantity, 4),
         })
     suggested = {}
     if item.kind == "venda" and cost:
@@ -306,7 +308,7 @@ def replenishment(db: Session, now=None) -> dict:
             scale = qty / it.yield_quantity
             inputs = []
             for line in it.recipe:
-                q = line.quantity * scale
+                q = line.gross_quantity * scale
                 if line.component_id in projected:
                     projected[line.component_id] -= q
                     for_production[line.component_id] += q
