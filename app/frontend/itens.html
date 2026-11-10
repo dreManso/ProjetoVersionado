@@ -13,7 +13,10 @@
 <main class="container py-4">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h4 class="fw-bold mb-0"><i class="bi bi-journal-richtext"></i> Itens e fichas técnicas</h4>
-    <button class="btn btn-primary" onclick="openCreate()"><i class="bi bi-plus-lg"></i> Novo item</button>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-primary" onclick="openPaste()"><i class="bi bi-clipboard-plus"></i> Colar lista de comprados</button>
+      <button class="btn btn-primary" onclick="openCreate()"><i class="bi bi-plus-lg"></i> Novo item</button>
+    </div>
   </div>
 
   <ul class="nav nav-pills mb-3" id="tabs">
@@ -140,6 +143,30 @@
         <button class="btn btn-outline-danger me-auto d-none" id="btn-del" onclick="removeItem()"><i class="bi bi-trash"></i> Excluir</button>
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button class="btn btn-primary" onclick="save()"><i class="bi bi-check-lg"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal colar lista -->
+<div class="modal fade" id="mPaste" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Colar lista de itens comprados</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="help mb-2">No outro sistema ou na planilha, selecione a tabela de ingredientes (de preferência com a linha de títulos), copie com <kbd>Ctrl+C</kbd> e cole aqui com <kbd>Ctrl+V</kbd>.
+          Colunas reconhecidas pelo título: <b>nome</b>, <b>unidade</b>, <b>custo/preço</b>, <b>estoque/quantidade</b> e <b>mínimo</b>. Sem títulos, a ordem esperada é: nome, unidade, custo, estoque, mínimo.</p>
+        <textarea class="form-control font-monospace mb-2" id="paste-text" rows="6" placeholder="Nome	Unidade	Custo	Estoque&#10;Tomate	kg	R$ 6,50	8&#10;Cebola	kg	4,00	3"></textarea>
+        <button class="btn btn-outline-primary btn-sm mb-3" onclick="previewPaste()"><i class="bi bi-eye"></i> Ver prévia</button>
+        <div id="paste-info" class="small mb-2"></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="paste-table"></table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button class="btn btn-success" id="paste-go" onclick="importPaste()" disabled><i class="bi bi-check-lg"></i> Importar</button>
       </div>
     </div>
   </div>
@@ -345,6 +372,113 @@ async function viewCost(id) {
       ${Object.keys(c.suggested_prices).length ? `<div><strong>Preço sugerido por CMV desejado:</strong><div class="d-flex flex-wrap gap-2 mt-1">${Object.entries(c.suggested_prices).map(([k, v]) => `<span class="badge bg-secondary fs-6">${k} → ${brl(v)}</span>`).join('')}</div></div>` : ''}`;
     bootstrap.Modal.getOrCreateInstance($('mCost')).show();
   });
+}
+
+// ── colar lista de comprados ──
+let pasteRows = [];
+const mPaste = () => bootstrap.Modal.getOrCreateInstance($('mPaste'));
+
+function openPaste() {
+  $('paste-text').value = ''; $('paste-info').innerHTML = ''; $('paste-table').innerHTML = '';
+  pasteRows = []; $('paste-go').disabled = true; mPaste().show();
+  setTimeout(() => $('paste-text').focus(), 300);
+}
+
+function parseMoney(s) {
+  if (s == null) return null;
+  let t = String(s).replace(/R\$|\s/gi, '').replace(/\/.*$/, '').replace(/[^\d.,-]/g, '');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if ((t.match(/\./g) || []).length > 1) t = t.replace(/\./g, '');
+  const v = parseFloat(t);
+  return isNaN(v) ? null : v;
+}
+
+function normUnit(s) {
+  const u = norm(s || '').replace(/[.\s]/g, '');
+  if (!u) return [null, false];
+  if (/^(kg|kgs|quilo|quilos|kilo|quilograma)/.test(u)) return ['kg', true];
+  if (/^(g|gr|grs|grama|gramas)$/.test(u)) return ['g', true];
+  if (/^(ml|mililitro)/.test(u)) return ['mL', true];
+  if (/^(l|lt|lts|litro|litros)$/.test(u)) return ['L', true];
+  if (/^(un|und|unid|unidade|unidades|u|pc|pca|peca|pecas)$/.test(u)) return ['un', true];
+  return ['un', false];  // cx, pct, dz, bandeja...: vira 'un' para conferir
+}
+
+const COLS = [
+  ['min_stock', /m[ií]n/],
+  ['name', /nome|ingrediente|produto|item|descri|insumo/],
+  ['unit', /^unid|^un\b|^und|medida/],
+  ['cost', /custo|pre[cç]o|valor|r\$/],
+  ['stock', /estoque|saldo|qtd|quant/],
+];
+
+function previewPaste() {
+  const lines = $('paste-text').value.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return toast('Cole a lista primeiro', 'error');
+  const sep = lines.some(l => l.includes('\t')) ? '\t' : lines.some(l => l.includes(';')) ? ';' : lines.some(l => l.includes('|')) ? '|' : null;
+  const split = l => (sep ? l.split(sep) : [l]).map(c => c.trim());
+  let map = { name: 0, unit: 1, cost: 2, stock: 3, min_stock: 4 }, start = 0;
+  const head = split(lines[0]).map(h => norm(h));
+  const found = {};
+  head.forEach((h, i) => { for (const [k, re] of COLS) if (!(k in found) && re.test(h)) { found[k] = i; break; } });
+  if ('name' in found) { map = found; start = 1; }
+  else if (!sep) map = { name: 0 };
+
+  const existing = new Set(all.map(i => norm(i.name)));
+  const seen = new Set();
+  pasteRows = lines.slice(start).map(l => {
+    const c = split(l), get = k => (k in map ? c[map[k]] : undefined);
+    const name = (get('name') || '').replace(/\s+/g, ' ').trim();
+    let [unit, okUnit] = normUnit(get('unit'));
+    if (!unit) { const m = String(get('cost') || '').match(/\/\s*(\w+)/); [unit, okUnit] = m ? normUnit(m[1]) : ['un', false]; }
+    const key = norm(name);
+    const status = !name ? 'vazio' : existing.has(key) ? 'existe' : seen.has(key) ? 'repetido' : 'novo';
+    seen.add(key);
+    return { name, unit, unitRaw: get('unit') || '', okUnit, cost: parseMoney(get('cost')), stock: parseMoney(get('stock')),
+             min: parseMoney(get('min_stock')), status, include: status === 'novo' };
+  });
+  renderPaste();
+  const cols = Object.keys(map).map(k => ({ name: 'nome', unit: 'unidade', cost: 'custo', stock: 'estoque', min_stock: 'mínimo' }[k])).join(', ');
+  $('paste-info').innerHTML = `Colunas usadas: <b>${cols}</b>${start ? ' (pela linha de títulos)' : ' (sem títulos: ordem padrão)'}. Confira as unidades e desmarque o que não quiser.`;
+}
+
+function renderPaste() {
+  const STATUS = { novo: '<span class="badge bg-success">novo</span>', existe: '<span class="badge bg-secondary">já cadastrado</span>',
+                   repetido: '<span class="badge bg-secondary">repetido</span>', vazio: '<span class="badge bg-light text-dark">sem nome</span>' };
+  $('paste-table').innerHTML = `<thead class="table-light"><tr><th></th><th>Nome</th><th>Unidade</th><th class="num">Custo (R$/unid.)</th><th class="num">Estoque atual</th><th class="num">Mínimo</th><th></th></tr></thead><tbody>` +
+    pasteRows.map((r, i) => `<tr class="${r.include ? '' : 'text-muted'}">
+      <td><input type="checkbox" class="form-check-input" ${r.include ? 'checked' : ''} ${r.status === 'novo' ? '' : 'disabled'} onchange="pasteRows[${i}].include=this.checked;renderPaste()"></td>
+      <td>${esc(r.name)}</td>
+      <td><select class="form-select form-select-sm ${r.okUnit ? '' : 'border-warning'}" style="width:auto" onchange="pasteRows[${i}].unit=this.value;pasteRows[${i}].okUnit=true;renderPaste()">
+        ${['kg', 'g', 'L', 'mL', 'un'].map(u => `<option ${u === r.unit ? 'selected' : ''}>${u}</option>`).join('')}</select>
+        ${r.okUnit ? '' : `<div class="help text-warning">era "${esc(r.unitRaw || 'sem unidade')}": confira</div>`}</td>
+      <td class="num">${r.cost == null ? '<span class="text-warning">—</span>' : brl(r.cost)}</td>
+      <td class="num">${r.stock == null ? '—' : num(r.stock)}</td>
+      <td class="num">${r.min == null ? '—' : num(r.min)}</td>
+      <td>${STATUS[r.status]}</td></tr>`).join('') + '</tbody>';
+  const n = pasteRows.filter(r => r.include).length;
+  $('paste-go').disabled = !n;
+  $('paste-go').innerHTML = `<i class="bi bi-check-lg"></i> Importar ${n} item(ns)`;
+}
+
+async function importPaste() {
+  const rows = pasteRows.filter(r => r.include);
+  $('paste-go').disabled = true;
+  let ok = 0; const fail = [];
+  for (const r of rows) {
+    try {
+      const data = { name: r.name, kind: 'compra', unit: r.unit, min_stock: Math.max(r.min || 0, 0), coverage_days: 6, recipe: [] };
+      if (r.cost != null && r.cost >= 0) data.avg_cost = r.cost;
+      const item = await api.createItem(data);
+      if (r.stock > 0) await api.adjust({ item_id: item.id, counted_quantity: r.stock, notes: 'Saldo inicial (lista colada)' });
+      ok++; r.include = false; r.status = 'existe';
+    } catch (e) { fail.push(`${r.name}: ${e.message}`); }
+  }
+  await load(); kind = 'compra'; render(); renderPaste();
+  toast(`${ok} item(ns) importado(s)`);
+  if (fail.length) toast('Não importados: ' + fail.join(' | '), 'warn');
+  else mPaste().hide();
 }
 
 load();
