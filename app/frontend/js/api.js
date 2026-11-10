@@ -61,13 +61,16 @@ function renderNav(active) {
     document.getElementById('nav').innerHTML = `
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container">
-        <a class="navbar-brand" href="/index.html"><i class="bi bi-shop"></i> Cozinha</a>
+        <a class="navbar-brand" href="/index.html"><i class="bi bi-shop"></i> Cozinha <small class="fw-normal text-secondary fs-6" id="app-version"></small></a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navc"><span class="navbar-toggler-icon"></span></button>
         <div class="collapse navbar-collapse" id="navc"><ul class="navbar-nav ms-auto">
           ${links.map(([p, i, l]) => `<li class="nav-item"><a class="nav-link ${p === active ? 'active' : ''}" href="/${p}.html"><i class="bi bi-${i}"></i> ${l}</a></li>`).join('')}
         </ul></div>
       </div>
     </nav>`;
+    request('GET', '/version')
+        .then(v => { document.getElementById('app-version').textContent = 'v' + v.version; })
+        .catch(() => {});
 }
 
 function toast(msg, type = 'success') {

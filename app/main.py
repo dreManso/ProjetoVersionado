@@ -6,10 +6,11 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import Base, engine
 from .routers import items, production, reports, sales, stock
+from .version import __version__
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Controle de Cozinha", version="2.0.0")
+app = FastAPI(title="Controle de Cozinha", version=__version__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,6 +24,11 @@ app.include_router(stock.router, prefix="/api/stock", tags=["Estoque"])
 app.include_router(production.router, prefix="/api/production", tags=["Produção"])
 app.include_router(sales.router, prefix="/api/sales", tags=["Vendas"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Relatórios"])
+
+
+@app.get("/api/version", tags=["Sistema"])
+def version():
+    return {"version": __version__}
 
 # Frontend (montado por último para não capturar as rotas /api)
 FRONTEND_DIR = Path(__file__).parent / "frontend"

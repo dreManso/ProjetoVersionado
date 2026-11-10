@@ -177,3 +177,8 @@ def test_lote_minimo_nhoque():
     rep = client.get("/api/reports/replenishment").json()
     n = next(r for r in rep["produce"] if r["name"] == "Nhoque porção")
     assert n["suggested"] >= 16
+
+
+def test_versao_exposta():
+    from app.version import __version__
+    assert client.get("/api/version").json() == {"version": __version__}
