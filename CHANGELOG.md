@@ -2,6 +2,11 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.7.2 — 10/11/2026
+- A perda (preparo ou defeito) agora aumenta só o CUSTO. A quantidade que sai do estoque, a da produção e a da lista de compras são as da ficha.
+- Reposição: com menos de uma semana de lançamentos, a média de consumo é dividida por pelo menos 6 dias (antes, 1 dia de teste virava média de 1 dia e inflava as compras). A tela avisa quantos dias de histórico existem.
+- Estoque sem sobras de arredondamento ("-0 g").
+
 ## 2.7.1 — 10/11/2026
 - Abrir no celular: o Painel mostra o endereço e um QR code para abrir o app no celular (mesmo Wi-Fi). A janela preta também mostra o endereço ao iniciar.
 

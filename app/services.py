@@ -24,6 +24,7 @@ from .models import Item, Movement, Setting
 
 WINDOW_DAYS = 28
 WORK_DAYS_PER_WEEK = 6
+MIN_WORK_DAYS = 6   # com menos de 1 semana de histórico, divide por pelo menos 6 dias (evita média inflada)
 CONSUMPTION_TYPES = ("venda", "producao_consumo")
 EPS = 1e-9
 
@@ -115,7 +116,7 @@ def to_datetime(day):
 
 def add_movement(db: Session, item: Item, quantity: float, type_: str, unit_cost=None,
                  when=None, notes=None, production_id=None, sale_id=None) -> Movement:
-    item.stock = (item.stock or 0.0) + quantity
+    item.stock = round((item.stock or 0.0) + quantity, 6) + 0.0   # sem sobras de arredondamento (-0,0000001)
     mv = Movement(
         item_id=item.id, type=type_, quantity=quantity, unit_cost=unit_cost,
         date=when or datetime.now(), notes=notes,
@@ -160,7 +161,7 @@ def unit_cost(item: Item, _memo=None, _stack=None):
             c, sub = unit_cost(line.component, memo, stack)
             issues += sub
             if c is not None:
-                total += c * line.gross_quantity
+                total += c * line.cost_quantity
         stack.discard(item.id)
         if not item.recipe:
             issues.append(f"{item.name}: ficha técnica vazia")
@@ -192,13 +193,13 @@ def cost_breakdown(item: Item) -> dict:
             "name": line.component.name,
             "kind": line.component.kind,
             "quantity": line.quantity,
-            "gross_quantity": round(line.gross_quantity, 6),
+            "cost_quantity": round(line.cost_quantity, 6),
             "loss_percent": line.effective_loss,
             "unit": line.component.unit,
             "display_quantity": round(shown_qty, 6),
             "display_unit": shown_unit,
             "unit_cost": None if c is None else round(c, 6),
-            "total": None if c is None else round(c * line.gross_quantity, 4),
+            "total": None if c is None else round(c * line.cost_quantity, 4),
         })
     suggested = {}
     if item.kind == "venda" and cost:
@@ -250,16 +251,25 @@ def creates_cycle(db: Session, parent_id: int, component_id: int) -> bool:
 
 # ── consumo médio e reposição ─────────────────────────────────────────────────
 
-def daily_consumption(db: Session, now=None) -> dict:
-    """Consumo médio por dia de trabalho, por item, nas últimas 4 semanas."""
+def history_days(db: Session, now=None) -> float:
+    """Quantos dias de lançamentos existem dentro da janela de 4 semanas."""
     now = now or datetime.now()
-    start = now - timedelta(days=WINDOW_DAYS)
     first = db.query(func.min(Movement.date)).scalar()
     if first is None:
+        return 0.0
+    span_start = max(now - timedelta(days=WINDOW_DAYS), first)
+    return max(0.0, (now - span_start).total_seconds() / 86400)
+
+
+def daily_consumption(db: Session, now=None) -> dict:
+    """Consumo médio por dia de trabalho, por item, nas últimas 4 semanas
+    (com pouco histórico, divide por pelo menos MIN_WORK_DAYS)."""
+    now = now or datetime.now()
+    start = now - timedelta(days=WINDOW_DAYS)
+    days = history_days(db, now)
+    if not days and db.query(Movement.id).first() is None:
         return {}
-    span_start = max(start, first)
-    days = max(1.0, (now - span_start).total_seconds() / 86400)
-    work_days = max(1.0, days * WORK_DAYS_PER_WEEK / 7)
+    work_days = max(MIN_WORK_DAYS, days * WORK_DAYS_PER_WEEK / 7)
     rows = (
         db.query(Movement.item_id, func.sum(Movement.quantity))
         .filter(Movement.date >= start, Movement.type.in_(CONSUMPTION_TYPES))
@@ -336,7 +346,7 @@ def replenishment(db: Session, now=None) -> dict:
             scale = qty / it.yield_quantity
             inputs = []
             for line in it.recipe:
-                q = line.gross_quantity * scale
+                q = line.quantity * scale
                 if line.component_id in projected:
                     projected[line.component_id] -= q
                     for_production[line.component_id] += q
@@ -360,5 +370,7 @@ def replenishment(db: Session, now=None) -> dict:
         "buy_total": round(sum(r["estimated_cost"] for r in buy), 2),
         "warnings": warnings,
         "window_days": WINDOW_DAYS,
+        "history_days": round(history_days(db, now), 1),
+        "min_work_days": MIN_WORK_DAYS,
         "work_days_per_week": WORK_DAYS_PER_WEEK,
     }

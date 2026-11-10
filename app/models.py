@@ -75,8 +75,9 @@ class RecipeLine(Base):
         return min(max(v or 0.0, 0.0), 95.0)
 
     @property
-    def gross_quantity(self) -> float:
-        """Quantidade bruta que sai do estoque: líquida ÷ (1 − perda). Ex.: 500 g limpos, 10% casca → 555,6 g."""
+    def cost_quantity(self) -> float:
+        """Quantidade usada SÓ no custo: quantidade ÷ (1 − perda). A perda encarece o item,
+        mas não muda o que sai do estoque nem o que entra na lista de compras."""
         return self.quantity / (1 - self.effective_loss / 100)
 
 

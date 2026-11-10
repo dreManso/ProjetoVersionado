@@ -104,8 +104,7 @@ function select() {
   if (!current) { $('p-inputs').innerHTML = ''; $('p-unit').innerHTML = ''; $('p-expected').textContent = ''; return; }
   if (!current.recipe.length) toast('Este item não tem ficha técnica. Cadastre em "Itens e fichas".', 'warn');
   const b = parseNum($('p-batches').value) || 1;
-  // sugere o peso BRUTO que sai do estoque (já com a perda da ficha)
-  inputs = current.recipe.map(r => ({ item_id: r.component_id, quantity: +((r.gross_quantity ?? r.quantity) * b).toFixed(3) }));
+  inputs = current.recipe.map(r => ({ item_id: r.component_id, quantity: +(r.quantity * b).toFixed(3) }));
   // rendimento na unidade em que a ficha foi cadastrada (ex.: kg pronto); dá para trocar por porções
   const yu = current.yield_unit || current.unit;
   $('p-unit').innerHTML = itemUnits(current).map(u => `<option ${u === yu ? 'selected' : ''}>${u}</option>`).join('');

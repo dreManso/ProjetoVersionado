@@ -98,14 +98,14 @@ async function load() {
 function render() {
   const k = $('f-kind').value, f = norm($('f-text').value);
   const rows = items.filter(i => (!k || i.kind === k) && (!f || norm(i.name).includes(f)))
-    .sort((a, b) => ((b.stock < 0) - (a.stock < 0)) || a.name.localeCompare(b.name));
+    .sort((a, b) => ((b.stock < -1e-6) - (a.stock < -1e-6)) || a.name.localeCompare(b.name));
   $('tbody').innerHTML = rows.length ? rows.map(i => {
     const cost = i.avg_cost || i.unit_cost || 0;
     const st = i.stock < -1e-9 ? '<span class="badge bg-danger">Negativo</span>'
       : i.stock < i.min_stock ? '<span class="badge bg-warning text-dark">Abaixo da segurança</span>'
       : '<span class="badge bg-success">OK</span>';
     return `<tr><td class="fw-semibold">${esc(i.name)}</td><td><span class="badge kind-${i.kind}">${KIND_LABEL[i.kind]}</span></td>
-      <td class="num ${i.stock < 0 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td><td class="num">${i.min_stock ? qty(i.min_stock, i.unit) : '—'}</td>
+      <td class="num ${i.stock < -1e-6 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td><td class="num">${i.min_stock ? qty(i.min_stock, i.unit) : '—'}</td>
       <td class="num">${brl(Math.max(i.stock, 0) * cost)}</td><td>${st}</td>
       <td class="text-end text-nowrap">
         <button class="btn btn-sm btn-outline-success" onclick="openBuy(${i.id})" title="Entrada de compra"><i class="bi bi-cart-plus"></i></button>

@@ -66,7 +66,7 @@ def serialize(item: Item, memo=None, fee=None) -> dict:
                 "component_name": l.component.name,
                 "component_unit": l.component.unit,
                 "quantity": l.quantity,
-                "gross_quantity": round(l.gross_quantity, 6),
+                "cost_quantity": round(l.cost_quantity, 6),
                 "loss_percent": l.loss_percent,
                 "effective_loss": l.effective_loss,
                 **display_line(l),

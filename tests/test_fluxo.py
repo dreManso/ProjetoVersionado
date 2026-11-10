@@ -265,7 +265,7 @@ def test_porcao_com_peso_rendimento_em_kg():
     assert r.status_code == 400
 
 
-def test_perda_no_preparo_custo_e_baixa_pelo_bruto():
+def test_perda_aumenta_so_o_custo_nao_a_quantidade():
     cebola = item(name="Cebola", kind="compra", unit="kg", avg_cost=9.0, loss_percent=10)
     peito = item(name="Peito congelado", kind="compra", unit="kg", avg_cost=18.0, loss_percent=20)
     molho = item(name="Molho", kind="producao", unit="g", yield_quantity=1000, recipe=[
@@ -274,21 +274,21 @@ def test_perda_no_preparo_custo_e_baixa_pelo_bruto():
     ])
     l_ceb, l_pei = molho["recipe"]
     assert l_ceb["effective_loss"] == 10 and l_ceb["loss_percent"] is None
-    assert l_ceb["gross_quantity"] == pytest.approx(0.5)            # 450 g limpos ÷ 0,9 = 500 g brutos
-    assert l_pei["gross_quantity"] == pytest.approx(0.4 / 0.75)
+    assert l_ceb["cost_quantity"] == pytest.approx(0.5)             # custo de 450 g com 10% de perda = custo de 500 g
+    assert l_pei["cost_quantity"] == pytest.approx(0.4 / 0.75)
     assert (l_ceb["display_quantity"], l_ceb["display_unit"]) == (450, "g")
     custo = 0.5 * 9.0 + (0.4 / 0.75) * 18.0
     assert molho["unit_cost"] == pytest.approx(custo / 1000, rel=1e-4)
-    # prato com 300 g limpos de peito: a venda baixa o bruto (300 ÷ 0,8 = 375 g)
+    # prato com 300 g de peito: o custo considera a perda, mas a venda baixa só os 300 g
     prato = item(name="Frango grelhado", kind="venda", selling_price=30,
                  recipe=[{"component_id": peito["id"], "quantity": 300, "unit": "g"}])
     client.post("/api/stock/purchase", json={"item_id": peito["id"], "quantity": 10, "total_price": 180})
     client.post("/api/sales", json={"lines": [{"item_id": prato["id"], "quantity": 2}]})
-    assert get(peito["id"])["stock"] == pytest.approx(10 - 2 * 0.375)
+    assert get(peito["id"])["stock"] == pytest.approx(10 - 2 * 0.3)
     assert get(prato["id"])["unit_cost"] == pytest.approx(0.375 * 18.0)
     # mudar a perda padrão do item atualiza as fichas que usam o padrão
     client.put(f"/api/items/{cebola['id']}", json={"name": "Cebola", "kind": "compra", "unit": "kg", "loss_percent": 0})
-    assert get(molho["id"])["recipe"][0]["gross_quantity"] == pytest.approx(0.45)
+    assert get(molho["id"])["recipe"][0]["cost_quantity"] == pytest.approx(0.45)
 
 
 def test_lucro_sobre_custo_preco_ifood_e_canal_de_venda():
@@ -308,3 +308,20 @@ def test_lucro_sobre_custo_preco_ifood_e_canal_de_venda():
     assert r.json()["total"] == pytest.approx(42.56)
     assert client.get("/api/sales").json()[0]["channel"] == "ifood"
     assert client.put("/api/settings", json={"ifood_fee_percent": 95}).status_code == 422
+
+
+def test_reposicao_nao_usa_perda_e_media_com_pouco_historico():
+    feijao = item(name="Feijão", kind="compra", unit="kg", avg_cost=9.9, loss_percent=10, coverage_days=15)
+    porcao = item(name="Porção feijão", kind="producao", unit="un", yield_quantity=10,
+                  recipe=[{"component_id": feijao["id"], "quantity": 1}])
+    client.post("/api/stock/purchase", json={"item_id": feijao["id"], "quantity": 1, "total_price": 9.9})
+    # produção de teste hoje: gastou 1 kg (a perda não aumenta a baixa)
+    client.post("/api/production", json={"item_id": porcao["id"], "output_quantity": 10,
+                                         "inputs": [{"item_id": feijao["id"], "quantity": 1}]})
+    assert get(feijao["id"])["stock"] == pytest.approx(0)
+    rep = client.get("/api/reports/replenishment").json()
+    f = next(r for r in rep["buy"] if r["name"] == "Feijão")
+    # 1 dia de histórico: média = 1 kg ÷ 6 dias (não 1 kg/dia) → 15 dias = 2,5 kg
+    assert f["daily"] == pytest.approx(1 / 6, rel=1e-2)
+    assert f["target"] == pytest.approx(2.5, rel=1e-2)
+    assert rep["history_days"] < 1 and rep["min_work_days"] == 6

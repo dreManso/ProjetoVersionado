@@ -36,7 +36,7 @@ def register_sales(data: SalesIn, db: Session = Depends(get_db)):
             warnings.append(f"{dish.name}: sem ficha técnica, nada foi baixado do estoque")
         for comp_line in dish.recipe:
             comp = comp_line.component
-            add_movement(db, comp, -comp_line.gross_quantity * line.quantity, "venda",
+            add_movement(db, comp, -comp_line.quantity * line.quantity, "venda",
                          unit_cost=current_cost(comp), when=when,
                          notes=f"{dish.name} × {line.quantity:g}", sale_id=sale.id)
         created += 1

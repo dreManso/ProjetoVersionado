@@ -15,7 +15,7 @@
     <h4 class="fw-bold mb-0"><i class="bi bi-clipboard-check"></i> Reposição <span class="help" id="when"></span></h4>
     <button class="btn btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
   </div>
-  <p class="help no-print" id="rule"></p>
+  <div class="help no-print mb-2" id="rule"></div>
   <div id="warnings"></div>
 
   <div class="card shadow-sm mb-4">
@@ -48,12 +48,14 @@ const $ = id => document.getElementById(id);
 async function load() {
   const r = await api.replenishment();
   $('when').textContent = '· ' + new Date().toLocaleDateString('pt-BR');
-  $('rule').textContent = `Média de consumo das últimas ${r.window_days / 7} semanas (${r.work_days_per_week} dias de trabalho por semana). Alvo = média/dia × dias de cobertura do item + estoque de segurança. A produção sugerida já é descontada dos insumos, e só falta comprar o que não tem.`;
+  const hist = r.history_days < 1 ? 'menos de 1 dia' : `${num(r.history_days, 0)} dia(s)`;
+  $('rule').innerHTML = `Média de consumo das últimas ${r.window_days / 7} semanas (${r.work_days_per_week} dias de trabalho por semana). Alvo = média/dia × dias de cobertura do item + estoque de segurança. A produção sugerida já é descontada dos insumos, e só falta comprar o que não tem.` +
+    (r.history_days < 7 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small"><i class="bi bi-info-circle"></i> Só há ${hist} de lançamentos: enquanto não completar uma semana, a média é dividida por pelo menos ${r.min_work_days} dias. Confira as quantidades com a sua experiência.</div>` : '');
   $('warnings').innerHTML = r.warnings.map(w => `<div class="alert alert-warning py-2 small">${esc(w)}</div>`).join('');
 
   $('produce').innerHTML = r.produce.length ? r.produce.map(p => `<tr>
       <td class="fw-semibold">${esc(p.name)}<div class="help">${num(p.coverage_days)} dias de cobertura</div></td>
-      <td class="num ${p.stock < 0 ? 'text-danger' : ''}">${qty(p.stock, p.unit)}</td>
+      <td class="num ${p.stock < -1e-6 ? 'text-danger' : ''}">${qty(p.stock, p.unit)}</td>
       <td class="num">${qty(p.daily, p.unit)}</td>
       <td class="num">${qty(p.target, p.unit)}${p.for_production ? `<div class="help">+${qty(p.for_production, p.unit)} p/ produção</div>` : ''}</td>
       <td class="num fw-bold">${qty(p.suggested, p.unit)}<div class="help">${num(p.batches, 2)} receita(s)</div></td>
@@ -62,7 +64,7 @@ async function load() {
 
   $('buy').innerHTML = r.buy.length ? r.buy.map(b => `<tr>
       <td class="fw-semibold">${esc(b.name)}<div class="help">${num(b.coverage_days)} dias de cobertura</div></td>
-      <td class="num ${b.stock < 0 ? 'text-danger' : ''}">${qty(b.stock, b.unit)}</td>
+      <td class="num ${b.stock < -1e-6 ? 'text-danger' : ''}">${qty(b.stock, b.unit)}</td>
       <td class="num">${qty(b.daily, b.unit)}</td>
       <td class="num">${b.for_production ? qty(b.for_production, b.unit) : '—'}</td>
       <td class="num">${qty(b.target, b.unit)}</td>

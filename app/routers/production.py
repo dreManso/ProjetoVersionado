@@ -17,7 +17,7 @@ def _expected_output(item: Item, actual_inputs: dict):
     used = actual_inputs.get(main.component_id)
     if not used:
         return None
-    return item.yield_quantity * used / main.gross_quantity
+    return item.yield_quantity * used / main.quantity
 
 
 def _serialize(p: Production) -> dict:

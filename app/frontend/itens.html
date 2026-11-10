@@ -121,7 +121,7 @@
                 <label class="form-label">Perda (preparo ou defeito)</label>
                 <div class="input-group"><input class="form-control" id="f-loss" inputmode="decimal" placeholder="0">
                   <span class="input-group-text">%</span></div>
-                <div class="help">Casca, limpeza, descongelamento, unidades com defeito ou faltando no pacote... Vale para todas as receitas (cada receita pode mudar)</div>
+                <div class="help">Casca, limpeza, descongelamento, unidades com defeito... Aumenta só o CUSTO nas receitas, não a quantidade. Vale para todas as receitas (cada receita pode mudar)</div>
               </div>
               <div class="col-6 d-flex align-items-center"><div id="f-losscalc" class="fw-semibold text-primary small"></div></div>
             </div>
@@ -166,7 +166,7 @@
             <h6 class="fw-bold">Ficha técnica</h6>
             <p class="help" id="recipe-help"></p>
             <table class="table table-sm">
-              <thead><tr><th>Componente</th><th class="num">Qtd. limpa</th><th></th><th class="num" title="Perda no preparo: o app calcula o bruto que sai do estoque">Perda</th><th class="num">Custo</th><th></th></tr></thead>
+              <thead><tr><th>Componente</th><th class="num">Quantidade</th><th></th><th class="num" title="Perda: aumenta só o custo da linha, não a quantidade">Perda</th><th class="num">Custo</th><th></th></tr></thead>
               <tbody id="recipe-body"></tbody>
             </table>
             <button class="btn btn-sm btn-outline-primary" onclick="addLine()"><i class="bi bi-plus"></i> Adicionar componente</button>
@@ -244,10 +244,10 @@ function render() {
     const actions = `<td class="text-end text-nowrap">
         ${i.kind !== 'compra' ? `<button class="btn btn-sm btn-outline-info" title="Custo detalhado" onclick="viewCost(${i.id})"><i class="bi bi-calculator"></i></button>` : ''}
         <button class="btn btn-sm btn-outline-primary" title="Editar" onclick="openEdit(${i.id})"><i class="bi bi-pencil"></i></button></td>`;
-    const stock = `<td class="num ${i.stock < 0 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td>`;
+    const stock = `<td class="num ${i.stock < -1e-6 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td>`;
     if (kind === 'compra') return `<tr>${name}${stock}
         <td class="num">${i.avg_cost ? unitPrice(i.avg_cost, i.unit) : '<span class="text-warning">sem custo</span>'}
-          ${i.loss_percent ? `<div class="help">perda ${pct(i.loss_percent)}${i.avg_cost ? ` → ${unitPrice(i.avg_cost / (1 - i.loss_percent / 100), i.unit)} aproveitável` : ''}</div>` : ''}</td>
+          ${i.loss_percent ? `<div class="help">perda ${pct(i.loss_percent)}${i.avg_cost ? ` → custo ${unitPrice(i.avg_cost / (1 - i.loss_percent / 100), i.unit)}` : ''}</div>` : ''}</td>
         <td class="num">${i.pack_size ? qtyF(i.pack_size, i.unit) + ' ' + esc(i.pack_label || '') : '—'}</td>
         <td class="num">${num(i.coverage_days)} dias</td>${actions}</tr>`;
     if (kind === 'producao') return `<tr>${name}${stock}
@@ -273,8 +273,8 @@ function toggleKind() {
   document.querySelectorAll('.show-stock').forEach(e => e.classList.toggle('d-none', k === 'venda'));
   document.querySelectorAll('.show-recipe').forEach(e => e.classList.toggle('d-none', k === 'compra'));
   $('recipe-help').textContent = k === 'producao'
-    ? 'Quantidades LIMPAS de UMA receita/lote. Com a perda (casca, descongelamento...), o app calcula o bruto que sai do estoque e o custo real. Escolha g ou kg (mL ou L) em cada linha.'
-    : 'Quantidades LIMPAS para montar 1 prato (ex.: 1 porção de arroz, 300 g de macarrão, 1 embalagem). Com a perda, o app calcula o bruto e o custo real. Escolha g ou kg (mL ou L) em cada linha.';
+    ? 'Quantidades de UMA receita/lote. A perda (casca, descongelamento...) aumenta só o custo da linha. Escolha g ou kg (mL ou L) em cada linha.'
+    : 'Quantidades para montar 1 prato (ex.: 1 porção de arroz, 300 g de macarrão, 1 embalagem). A perda aumenta só o custo da linha. Escolha g ou kg (mL ou L) em cada linha.';
   updateUnits();
 }
 function updateUnits() {
@@ -354,19 +354,15 @@ function renderCostCalc() {
   $('f-costcalc').textContent = c == null ? '' : `= ${unitPrice(c, u).replace('/', ' por ')}`;
   renderLossCalc();
 }
-// "1 kg → 800 g aproveitáveis · R$ 22,50 por kg aproveitável"
+// "Custo nas receitas: R$ 9,89 por kg (+11,1%)" — a perda encarece, não muda a quantidade
 function renderLossCalc() {
   const loss = Math.min(parseNum($('f-loss').value) || 0, 95), u = $('f-unit').value;
   if (!loss) { $('f-losscalc').textContent = ''; return; }
-  // base do exemplo: a embalagem de compra (24 un), ou 1 kg/1 L, ou 100 un
-  const pack = $('f-kind').value === 'compra' ? packSizeInStockUnit() : null;
-  const one = pack || (u === 'g' || u === 'mL' ? 1000 : u === 'un' ? 100 : 1);
-  const label = pack ? `1 ${$('f-packlabel').value.trim() || 'embalagem'} (${qtyF(one, u)})` : qtyF(one, u);
-  const left = one * (1 - loss / 100);
-  let txt = `${label} → ${u === 'un' ? num(left, 2) + ' un' : qtyF(left, u)} aproveitáveis`;
   const c = $('f-kind').value === 'compra' ? costPerStockUnit() : (editing && editing.unit_cost);
-  if (c) txt += ` · ${unitPrice(c / (1 - loss / 100), u).replace('/', ' por ')} aproveitável`;
-  $('f-losscalc').textContent = txt;
+  const extra = (1 / (1 - loss / 100) - 1) * 100;
+  $('f-losscalc').textContent = c
+    ? `Custo nas receitas: ${unitPrice(c / (1 - loss / 100), u).replace('/', ' por ')} (+${num(extra, 1)}%)`
+    : `Custo nas receitas: +${num(extra, 1)}%`;
 }
 $('f-loss').addEventListener('input', renderLossCalc);
 $('f-kind').onchange = toggleKind;
@@ -440,13 +436,12 @@ function lineWarn(l, c) {
   const base = ['kg', 'g'].includes(l.unit) ? 'kg' : 'L';
   return convertQty(l.quantity, l.unit, base) > 100 ? `${num(l.quantity)} ${l.unit}? Confira a unidade` : '';
 }
-// perda da linha (se vazia, a perda padrão do item) e quantidade bruta que sai do estoque
+// perda da linha (se vazia, a perda padrão do item): entra só no custo
 const lineLoss = (l, c) => Math.min(Math.max(l.loss ?? (c ? c.loss_percent || 0 : 0), 0), 95);
 function lineGross(l, c) { const q = lineQty(l, c); return q == null ? null : q / (1 - lineLoss(l, c) / 100); }
 function lineGrossText(l, c) {
   if (!c || !l.quantity || !lineLoss(l, c)) return '';
-  const g = lineGross(l, c);
-  return `bruto: ${c.unit === 'un' ? num(g, 2) + ' un' : qtyF(g, c.unit)}`;
+  return `custo +${num((1 / (1 - lineLoss(l, c) / 100) - 1) * 100, 1)}%`;
 }
 function lineCostText(l, c) {
   const q = lineGross(l, c);
@@ -561,10 +556,10 @@ async function viewCost(id) {
     const per = c.kind === 'producao' ? `<tr><td colspan="4" class="text-end">÷ rendimento ${qty(c.yield_quantity, c.unit)}${c.portion_size ? ` (porções de ${num(c.portion_size)} ${c.portion_unit})` : ''} = custo</td><td class="num">${unitPrice(c.unit_cost, c.unit)}</td></tr>` : '';
     $('cBody').innerHTML = `
       <table class="table table-sm">
-        <thead class="table-dark"><tr><th>Componente</th><th class="num">Qtd. limpa</th><th class="num">Perda → bruto</th><th class="num">Custo unit.</th><th class="num">Total</th></tr></thead>
+        <thead class="table-dark"><tr><th>Componente</th><th class="num">Quantidade</th><th class="num">Perda (só custo)</th><th class="num">Custo unit.</th><th class="num">Total</th></tr></thead>
         <tbody>${c.lines.map(l => `<tr><td>${esc(l.name)} <span class="badge kind-${l.kind}">${KIND_LABEL[l.kind]}</span></td>
           <td class="num">${qty(l.display_quantity, l.display_unit)}</td>
-          <td class="num">${l.loss_percent ? `${pct(l.loss_percent)} → ${l.unit === 'un' ? num(l.gross_quantity, 2) + ' un' : qtyF(l.gross_quantity, l.unit)}` : '—'}</td>
+          <td class="num">${l.loss_percent ? pct(l.loss_percent) : '—'}</td>
           <td class="num">${unitPrice(l.unit_cost, l.unit)}</td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
         <tfoot class="fw-bold"><tr><td colspan="4" class="text-end">Total da ficha</td><td class="num">${brl(c.recipe_cost)}</td></tr>${per}
           ${c.selling_price ? `<tr><td colspan="4" class="text-end">Venda direta · lucro · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.markup_percent)} · ${pct(c.cmv_percent)}</td></tr>
