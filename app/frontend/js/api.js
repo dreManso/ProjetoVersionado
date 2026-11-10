@@ -44,7 +44,17 @@ const todayISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.g
 const parseNum = s => { const v = parseFloat(String(s ?? '').replace(',', '.')); return isNaN(v) ? null : v; };
 const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-const KIND_LABEL = { compra: 'Comprado', producao: 'Produzido', venda: 'Prato' };
+// ── unidades (g↔kg, mL↔L) ─────────────────────────────────────────────────────
+const UNIT_FACTOR = { kg: 1000, g: 1, L: 1000, mL: 1, un: 1 };
+const UNIT_OPTIONS = { kg: ['kg', 'g'], g: ['g', 'kg'], L: ['L', 'mL'], mL: ['mL', 'L'], un: ['un'] };
+const convertQty = (q, from, to) => q == null ? null : +(q * UNIT_FACTOR[from] / UNIT_FACTOR[to]).toFixed(6);
+// Unidade mais fácil de ler: 0,3 kg → g; 0,15 L → mL
+const friendlyUnit = (q, unit) => (unit === 'kg' && q > 0 && q < 1) ? 'g' : (unit === 'L' && q > 0 && q < 1) ? 'mL' : unit;
+const qtyF = (q, unit) => { if (q == null) return '—'; const u = friendlyUnit(Math.abs(q), unit); return qty(convertQty(q, unit, u), u); };
+const unitSelect =(base, selected, attrs = '') =>
+    `<select class="form-select form-select-sm" style="width:auto" ${attrs}>${(UNIT_OPTIONS[base] || [base]).map(u => `<option ${u === selected ? 'selected' : ''}>${u}</option>`).join('')}</select>`;
+
+const KIND_LABEL ={ compra: 'Comprado', producao: 'Produzido', venda: 'Prato' };
 const MOV_LABEL = {
     compra: ['Compra', 'success'], producao_entrada: ['Produção (entrada)', 'primary'],
     producao_consumo: ['Produção (consumo)', 'secondary'], venda: ['Venda', 'danger'],

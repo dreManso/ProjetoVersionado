@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Item, Movement, RecipeLine
 from ..schemas import ItemIn
-from ..services import cost_breakdown, creates_cycle, unit_cost
+from ..services import convert_unit, cost_breakdown, creates_cycle, unit_cost
 
 router = APIRouter()
 
@@ -66,6 +66,7 @@ def _apply(db: Session, item: Item, data: ItemIn):
     ids = [l.component_id for l in data.recipe]
     if len(ids) != len(set(ids)):
         raise HTTPException(400, "Componente repetido na ficha técnica")
+    quantities = []
     for line in data.recipe:
         comp = db.get(Item, line.component_id)
         if not comp:
@@ -74,6 +75,10 @@ def _apply(db: Session, item: Item, data: ItemIn):
             raise HTTPException(400, f"'{comp.name}' é um prato e não pode ser componente")
         if item.id and (comp.id == item.id or creates_cycle(db, item.id, comp.id)):
             raise HTTPException(400, f"'{comp.name}' já usa este item: a ficha ficaria circular")
+        try:
+            quantities.append(convert_unit(line.quantity, line.unit, comp.unit))
+        except ValueError:
+            raise HTTPException(400, f"'{comp.name}' é controlado em {comp.unit}: use uma unidade compatível")
 
     item.name = data.name.strip()
     item.kind = data.kind
@@ -90,8 +95,8 @@ def _apply(db: Session, item: Item, data: ItemIn):
     if data.avg_cost is not None:
         item.avg_cost = data.avg_cost
     item.recipe = [
-        RecipeLine(component_id=l.component_id, quantity=l.quantity, position=i)
-        for i, l in enumerate(data.recipe)
+        RecipeLine(component_id=l.component_id, quantity=q, position=i)
+        for i, (l, q) in enumerate(zip(data.recipe, quantities))
     ]
 
 

@@ -2,6 +2,12 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.3.0 — 10/11/2026
+- Preço por embalagem: informe o preço do pacote (ex.: R$ 5,90 o pacote de 500 g) e o app calcula o preço por kg sozinho.
+- Embalagem pode ser cadastrada em g, kg, mL ou L (ex.: 500 g).
+- Ficha técnica aceita g ou kg (mL ou L) em cada linha: 300 g de macarrão vira 0,3 kg automaticamente.
+- Entrada de compra aceita quantidade em pacotes, g ou kg.
+
 ## 2.2.0 — 10/11/2026
 - Atualização automática: ao abrir, o programa baixa e instala a versão nova, sem tocar nos seus dados.
 

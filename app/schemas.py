@@ -10,6 +10,7 @@ Unit = Literal["kg", "g", "L", "mL", "un"]
 class RecipeLineIn(BaseModel):
     component_id: int
     quantity: float = Field(gt=0)
+    unit: Optional[Unit] = None  # se diferente da unidade do componente, é convertida (g→kg...)
 
 
 class ItemIn(BaseModel):
@@ -32,6 +33,7 @@ class ItemIn(BaseModel):
 class PurchaseIn(BaseModel):
     item_id: int
     quantity: float = Field(gt=0)        # peso/quantidade bruta total
+    unit: Optional[Unit] = None          # unidade da quantidade (convertida para a do item)
     total_price: float = Field(ge=0)     # valor total pago
     day: Optional[date] = None
     notes: Optional[str] = None

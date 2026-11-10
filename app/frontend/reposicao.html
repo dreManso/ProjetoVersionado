@@ -57,7 +57,7 @@ async function load() {
       <td class="num">${qty(p.daily, p.unit)}</td>
       <td class="num">${qty(p.target, p.unit)}${p.for_production ? `<div class="help">+${qty(p.for_production, p.unit)} p/ produção</div>` : ''}</td>
       <td class="num fw-bold">${qty(p.suggested, p.unit)}<div class="help">${num(p.batches, 2)} receita(s)</div></td>
-      <td class="small">${p.inputs.map(i => `${esc(i.name)}: ${qty(i.quantity, i.unit)}`).join('<br>')}</td></tr>`).join('')
+      <td class="small">${p.inputs.map(i => `${esc(i.name)}: ${qtyF(i.quantity, i.unit)}`).join('<br>')}</td></tr>`).join('')
     : '<tr><td colspan="6" class="text-center text-success py-3"><i class="bi bi-check-circle"></i> Nada para produzir</td></tr>';
 
   $('buy').innerHTML = r.buy.length ? r.buy.map(b => `<tr>

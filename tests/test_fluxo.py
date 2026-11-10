@@ -182,3 +182,26 @@ def test_lote_minimo_nhoque():
 def test_versao_exposta():
     from app.version import __version__
     assert client.get("/api/version").json() == {"version": __version__}
+
+
+def test_ficha_em_gramas_para_item_em_kg():
+    macarrao = item(name="Macarrão espaguete", kind="compra", unit="kg",
+                    pack_size=0.5, pack_label="pacote", avg_cost=11.8)
+    prato = item(name="Espaguete", kind="venda", selling_price=30,
+                 recipe=[{"component_id": macarrao["id"], "quantity": 300, "unit": "g"}])
+    assert prato["recipe"][0]["quantity"] == pytest.approx(0.3)
+    assert prato["unit_cost"] == pytest.approx(3.54)
+    r = client.post("/api/items", json={"name": "Errado", "kind": "venda",
+                                        "recipe": [{"component_id": macarrao["id"], "quantity": 1, "unit": "L"}]})
+    assert r.status_code == 400
+
+
+def test_compra_em_gramas_e_em_pacotes():
+    macarrao = item(name="Macarrão", kind="compra", unit="kg", pack_size=0.5)
+    # 10 pacotes de 500 g a R$ 5,90 cada = 5 kg por R$ 59 → R$ 11,80/kg
+    r = client.post("/api/stock/purchase", json={"item_id": macarrao["id"], "quantity": 5000,
+                                                 "unit": "g", "total_price": 59})
+    assert r.status_code == 200, r.text
+    m = get(macarrao["id"])
+    assert m["stock"] == pytest.approx(5)
+    assert m["avg_cost"] == pytest.approx(11.8)

@@ -65,20 +65,30 @@
               </div>
             </div>
 
-            <div class="row g-2 mb-3 show-compra">
-              <div class="col-4">
-                <label class="form-label">Custo atual (R$/<span class="u"></span>)</label>
-                <input class="form-control" id="f-cost" inputmode="decimal">
-                <div class="help">Atualiza sozinho a cada compra</div>
-              </div>
-              <div class="col-4">
+            <div class="row g-2 mb-2 show-compra">
+              <div class="col-7">
                 <label class="form-label">Embalagem de compra</label>
-                <input class="form-control" id="f-pack" inputmode="decimal" placeholder="ex: 2">
-                <div class="help">em <span class="u"></span></div>
+                <div class="input-group">
+                  <input class="form-control" id="f-pack" inputmode="decimal" placeholder="ex: 500">
+                  <select class="form-select" id="f-packunit" style="max-width:80px"></select>
+                </div>
+                <div class="help">Quanto vem em cada pacote/caixa (deixe vazio se compra a granel)</div>
               </div>
-              <div class="col-4">
+              <div class="col-5">
                 <label class="form-label">Nome da embalagem</label>
                 <input class="form-control" id="f-packlabel" placeholder="pacote, caixa">
+              </div>
+            </div>
+            <div class="row g-2 mb-3 show-compra">
+              <div class="col-12">
+                <label class="form-label">Preço pago</label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input class="form-control" id="f-cost" inputmode="decimal">
+                  <select class="form-select" id="f-costbasis" style="max-width:200px"></select>
+                </div>
+                <div><span id="f-costcalc" class="fw-semibold text-primary"></span>
+                  <span class="help">· atualiza sozinho a cada compra lançada</span></div>
               </div>
             </div>
 
@@ -220,25 +230,61 @@ function toggleKind() {
   document.querySelectorAll('.show-stock').forEach(e => e.classList.toggle('d-none', k === 'venda'));
   document.querySelectorAll('.show-recipe').forEach(e => e.classList.toggle('d-none', k === 'compra'));
   $('recipe-help').textContent = k === 'producao'
-    ? 'Quantidades de UMA receita/lote, na unidade de cada componente (peso bruto, como sai do estoque).'
-    : 'Quantidades usadas para montar 1 prato, na unidade de cada componente (ex.: 1 porção de arroz, 1 bife, 1 embalagem).';
+    ? 'Quantidades de UMA receita/lote (peso bruto, como sai do estoque). Escolha g ou kg (mL ou L) em cada linha: o app converte sozinho.'
+    : 'Quantidades usadas para montar 1 prato (ex.: 1 porção de arroz, 300 g de macarrão, 1 embalagem). Escolha g ou kg (mL ou L) em cada linha: o app converte sozinho.';
   updateUnits();
 }
 function updateUnits() {
   const u = $('f-kind').value === 'venda' ? 'un' : $('f-unit').value;
   document.querySelectorAll('.u').forEach(e => e.textContent = u);
+  // unidade da embalagem: mesma família da unidade de estoque
+  const pu = $('f-packunit').value;
+  $('f-packunit').innerHTML = (UNIT_OPTIONS[u] || [u]).map(x => `<option ${x === pu ? 'selected' : ''}>${x}</option>`).join('');
+  renderCostBasis();
   renderLines();
+}
+
+// Preço: "por embalagem" ou "por unidade de estoque"; o custo por kg/L/un é calculado
+let costDirty = false, basisTouched = false;
+function packSizeInStockUnit() {
+  const p = parseNum($('f-pack').value);
+  return p > 0 ? convertQty(p, $('f-packunit').value, $('f-unit').value) : null;
+}
+function renderCostBasis() {
+  const u = $('f-unit').value, label = $('f-packlabel').value.trim() || 'embalagem';
+  // padrão: "por embalagem" quando há embalagem, a menos que a pessoa tenha escolhido outra opção
+  const cur = basisTouched ? $('f-costbasis').value : (packSizeInStockUnit() ? 'pack' : 'unit');
+  const opts = [['unit', `por ${u}`]];
+  if (packSizeInStockUnit()) opts.unshift(['pack', `por ${label}`]);
+  const sel = opts.some(o => o[0] === cur) ? cur : opts[0][0];
+  $('f-costbasis').innerHTML = opts.map(([v, t]) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  renderCostCalc();
+}
+function costPerStockUnit() {
+  const v = parseNum($('f-cost').value);
+  if (v == null) return null;
+  if ($('f-costbasis').value === 'pack') { const ps = packSizeInStockUnit(); return ps ? v / ps : null; }
+  return v;
+}
+function renderCostCalc() {
+  const c = costPerStockUnit(), u = $('f-unit').value;
+  $('f-costcalc').textContent = c == null ? '' : `= ${brl(c)} por ${u}`;
 }
 $('f-kind').onchange = toggleKind;
 $('f-unit').onchange = updateUnits;
+['f-pack', 'f-packunit', 'f-packlabel'].forEach(id => $(id).addEventListener('input', renderCostBasis));
+$('f-packunit').addEventListener('change', renderCostBasis);
+$('f-costbasis').onchange = () => { costDirty = true; basisTouched = true; renderCostCalc(); };
+$('f-cost').oninput = () => { costDirty = true; renderCostCalc(); };
 ['f-yield', 'f-price'].forEach(id => $(id).oninput = renderPreview);
 
 function openCreate() {
-  editing = null; lines = [];
+  editing = null; lines = []; costDirty = false; basisTouched = false;
   $('mTitle').textContent = 'Novo item';
   ['f-name', 'f-cost', 'f-pack', 'f-packlabel', 'f-yield', 'f-price', 'f-notes'].forEach(id => setField(id, ''));
   setField('f-batch', 0); setField('f-cov', 6); setField('f-min', 0);
   $('f-kind').value = kind; $('f-unit').value = kind === 'producao' ? 'un' : 'kg';
+  $('f-packunit').innerHTML = ''; $('f-costbasis').innerHTML = '';
   $('f-active').checked = true;
   $('btn-del').classList.add('d-none');
   toggleKind(); mItem().show();
@@ -248,11 +294,21 @@ function openEdit(id) {
   const i = all.find(x => x.id === id); editing = i;
   $('mTitle').textContent = 'Editar: ' + i.name;
   setField('f-name', i.name); $('f-kind').value = i.kind; $('f-unit').value = i.unit;
-  setField('f-cost', i.avg_cost || ''); setField('f-pack', i.pack_size); setField('f-packlabel', i.pack_label);
+  costDirty = false; basisTouched = false;
+  // embalagem na unidade mais fácil de ler (0,5 kg → 500 g); preço por embalagem se houver
+  const pu = i.pack_size ? friendlyUnit(i.pack_size, i.unit) : i.unit;
+  $('f-packunit').innerHTML = `<option>${pu}</option>`;
+  setField('f-pack', i.pack_size ? convertQty(i.pack_size, i.unit, pu) : '');
+  setField('f-packlabel', i.pack_label);
+  $('f-costbasis').innerHTML = `<option value="${i.pack_size ? 'pack' : 'unit'}"></option>`;
+  setField('f-cost', i.avg_cost ? +(i.pack_size ? i.avg_cost * i.pack_size : i.avg_cost).toFixed(2) : '');
   setField('f-yield', i.yield_quantity); setField('f-batch', i.min_batch); setField('f-cov', i.coverage_days);
   setField('f-min', i.min_stock); setField('f-price', i.selling_price); setField('f-notes', i.notes);
   $('f-active').checked = i.active;
-  lines = i.recipe.map(r => ({ component_id: r.component_id, quantity: r.quantity }));
+  lines = i.recipe.map(r => {
+    const u = friendlyUnit(r.quantity, r.component_unit);
+    return { component_id: r.component_id, quantity: convertQty(r.quantity, r.component_unit, u), unit: u };
+  });
   $('btn-del').classList.remove('d-none');
   toggleKind(); mItem().show();
 }
@@ -265,17 +321,38 @@ function componentOptions(selected) {
       `<option value="${o.id}" ${o.id === selected ? 'selected' : ''}>${esc(o.name)} (${o.unit})</option>`).join('') + '</optgroup>').join('');
 }
 
-function addLine() { lines.push({ component_id: null, quantity: null }); renderLines(); }
+function addLine() { lines.push({ component_id: null, quantity: null, unit: null }); renderLines(); }
+
+// quantidade da linha convertida para a unidade de estoque do componente
+function lineQty(l, c) { return c && l.quantity ? convertQty(l.quantity, l.unit || c.unit, c.unit) : null; }
+
+function lineCostText(l, c) {
+  const q = lineQty(l, c);
+  return c && c.unit_cost != null && q ? brl(c.unit_cost * q) : '—';
+}
+// atualiza só o custo da linha e o resumo, sem redesenhar a tabela (não perde o foco)
+function updateLine(idx) {
+  const l = lines[idx], c = all.find(i => i.id === l.component_id);
+  const cell = $('lc-' + idx); if (cell) cell.textContent = lineCostText(l, c);
+  renderPreview();
+}
+
+function pickComponent(idx, id) {
+  const c = all.find(i => i.id === id);
+  lines[idx].component_id = id || null;
+  lines[idx].unit = c ? c.unit : null;
+  renderLines();
+}
 
 function renderLines() {
   $('recipe-body').innerHTML = lines.length ? lines.map((l, idx) => {
     const c = all.find(i => i.id === l.component_id);
-    const cost = c && c.unit_cost != null && l.quantity ? brl(c.unit_cost * l.quantity) : '—';
+    if (c && !(UNIT_OPTIONS[c.unit] || [c.unit]).includes(l.unit)) l.unit = c.unit;
     return `<tr>
-      <td><select class="form-select form-select-sm" onchange="lines[${idx}].component_id=+this.value||null;renderLines()">${componentOptions(l.component_id)}</select></td>
-      <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${l.quantity ?? ''}" oninput="lines[${idx}].quantity=parseNum(this.value);renderPreview()" onchange="renderLines()"></td>
-      <td class="text-muted">${c ? c.unit : ''}</td>
-      <td class="num">${cost}</td>
+      <td><select class="form-select form-select-sm" onchange="pickComponent(${idx}, +this.value)">${componentOptions(l.component_id)}</select></td>
+      <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${l.quantity ?? ''}" oninput="lines[${idx}].quantity=parseNum(this.value);updateLine(${idx})"></td>
+      <td>${c ? unitSelect(c.unit, l.unit, `onchange="lines[${idx}].unit=this.value;updateLine(${idx})"`) : ''}</td>
+      <td class="num" id="lc-${idx}">${lineCostText(l, c)}</td>
       <td><button class="btn btn-sm btn-outline-danger py-0" onclick="lines.splice(${idx},1);renderLines()"><i class="bi bi-x"></i></button></td></tr>`;
   }).join('') : '<tr><td colspan="5" class="text-muted text-center">Nenhum componente</td></tr>';
   renderPreview();
@@ -287,7 +364,7 @@ function renderPreview() {
   for (const l of lines) {
     const c = all.find(i => i.id === l.component_id);
     if (!c || !l.quantity) continue;
-    if (c.unit_cost == null || !c.unit_cost) missing = true; else total += c.unit_cost * l.quantity;
+    if (c.unit_cost == null || !c.unit_cost) missing = true; else total += c.unit_cost * lineQty(l, c);
   }
   let html = `Custo dos componentes: <strong>${brl(total)}</strong>`;
   if (k === 'producao') {
@@ -307,13 +384,17 @@ async function save() {
     name: $('f-name').value.trim(), kind: k, unit: k === 'venda' ? 'un' : $('f-unit').value,
     min_stock: parseNum($('f-min').value) || 0, coverage_days: parseNum($('f-cov').value) ?? 6,
     yield_quantity: parseNum($('f-yield').value), min_batch: parseNum($('f-batch').value) || 0,
-    pack_size: parseNum($('f-pack').value), pack_label: $('f-packlabel').value.trim() || null,
+    pack_size: packSizeInStockUnit(), pack_label: $('f-packlabel').value.trim() || null,
     selling_price: parseNum($('f-price').value), notes: $('f-notes').value.trim() || null,
     active: $('f-active').checked,
-    recipe: k === 'compra' ? [] : lines.filter(l => l.component_id && l.quantity > 0),
+    recipe: k === 'compra' ? [] : lines.filter(l => l.component_id && l.quantity > 0)
+      .map(l => ({ component_id: l.component_id, quantity: l.quantity, unit: l.unit })),
   };
-  const cost = parseNum($('f-cost').value);
-  if (k === 'compra' && cost != null) data.avg_cost = cost;
+  // só regrava o custo se o preço foi digitado/alterado (senão mantém a média das compras)
+  const cost = costPerStockUnit();
+  if (k === 'compra' && cost != null && (costDirty || !editing)) data.avg_cost = cost;
+  if (k === 'compra' && $('f-costbasis').value === 'pack' && parseNum($('f-cost').value) != null && !packSizeInStockUnit())
+    return toast('Informe o tamanho da embalagem', 'error');
   if (!data.name) return toast('Informe o nome', 'error');
   if (lines.some(l => (l.component_id && !(l.quantity > 0)) || (!l.component_id && l.quantity))) return toast('Complete ou remova as linhas incompletas da ficha', 'error');
   await safe(async () => {
@@ -336,7 +417,7 @@ async function viewCost(id) {
       <table class="table table-sm">
         <thead class="table-dark"><tr><th>Componente</th><th class="num">Qtd</th><th class="num">Custo unit.</th><th></th><th class="num">Total</th></tr></thead>
         <tbody>${c.lines.map(l => `<tr><td>${esc(l.name)} <span class="badge kind-${l.kind}">${KIND_LABEL[l.kind]}</span></td>
-          <td class="num">${qty(l.quantity, l.unit)}</td><td class="num">${brl(l.unit_cost)}</td><td></td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
+          <td class="num">${qtyF(l.quantity, l.unit)}</td><td class="num">${l.unit_cost != null ? brl(l.unit_cost) + '/' + l.unit : '—'}</td><td></td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
         <tfoot class="fw-bold"><tr><td colspan="4" class="text-end">Total da ficha</td><td class="num">${brl(c.recipe_cost)}</td></tr>${per}
           ${c.selling_price ? `<tr><td colspan="4" class="text-end">Preço de venda · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.cmv_percent)}</td></tr>` : ''}
           ${c.kind === 'producao' && c.avg_cost ? `<tr><td colspan="4" class="text-end">Custo real médio (produções registradas)</td><td class="num">${brl(c.avg_cost)}</td></tr>` : ''}</tfoot>

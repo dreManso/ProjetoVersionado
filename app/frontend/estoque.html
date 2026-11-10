@@ -47,8 +47,8 @@
     <div class="modal-body">
       <p class="fw-semibold" id="b-name"></p>
       <div class="row g-2 mb-2">
-        <div class="col-6"><label class="form-label">Quantidade bruta total *</label>
-          <div class="input-group"><input class="form-control" id="b-qty" inputmode="decimal"><span class="input-group-text" id="b-unit"></span></div>
+        <div class="col-6"><label class="form-label">Quantidade comprada *</label>
+          <div class="input-group"><input class="form-control" id="b-qty" inputmode="decimal"><select class="form-select" id="b-unit" style="max-width:130px"></select></div>
           <div class="help" id="b-pack"></div></div>
         <div class="col-6"><label class="form-label">Valor total pago (R$) *</label>
           <input class="form-control" id="b-total" inputmode="decimal"></div>
@@ -88,6 +88,7 @@ const $ = id => document.getElementById(id);
 let items = [], sel = null;
 $('f-kind').onchange = render; $('f-text').oninput = render;
 ['b-qty', 'b-total'].forEach(id => $(id).oninput = previewBuy);
+$('b-unit').onchange = previewBuy;
 
 async function load() {
   items = (await api.items()).filter(i => i.kind !== 'venda' && i.active);
@@ -124,18 +125,34 @@ async function loadMov() {
 
 function openBuy(id) {
   sel = items.find(i => i.id === id);
-  $('b-name').textContent = sel.name; $('b-unit').textContent = sel.unit;
-  $('b-qty').value = sel.pack_size || ''; $('b-total').value = ''; $('b-notes').value = ''; $('b-day').value = todayISO();
-  $('b-pack').textContent = sel.pack_size ? `1 ${sel.pack_label || 'emb.'} = ${qty(sel.pack_size, sel.unit)}` : 'Peso bruto, como chegou';
+  const label = sel.pack_label || 'embalagem';
+  // opções: embalagem (se cadastrada) + unidades compatíveis (g/kg, mL/L, un)
+  $('b-unit').innerHTML = (sel.pack_size ? `<option value="pack">${esc(label)}</option>` : '') +
+    (UNIT_OPTIONS[sel.unit] || [sel.unit]).map(u => `<option value="${u}">${u}</option>`).join('');
+  $('b-name').textContent = sel.name;
+  $('b-qty').value = sel.pack_size ? 1 : ''; $('b-total').value = ''; $('b-notes').value = ''; $('b-day').value = todayISO();
+  $('b-pack').textContent = sel.pack_size
+    ? `1 ${label} = ${qty(convertQty(sel.pack_size, sel.unit, friendlyUnit(sel.pack_size, sel.unit)), friendlyUnit(sel.pack_size, sel.unit))}`
+    : 'Peso bruto, como chegou';
   previewBuy();
   bootstrap.Modal.getOrCreateInstance($('mBuy')).show();
 }
+// quantidade digitada → unidade de estoque do item
+function buyQty() {
+  const q = parseNum($('b-qty').value), u = $('b-unit').value;
+  if (!(q > 0)) return null;
+  return u === 'pack' ? q * sel.pack_size : convertQty(q, u, sel.unit);
+}
 function previewBuy() {
-  const q = parseNum($('b-qty').value), t = parseNum($('b-total').value);
-  $('b-preview').textContent = q && t != null ? `= ${brl(t / q)} por ${sel.unit}` + (sel.avg_cost ? ` (média atual ${brl(sel.avg_cost)})` : '') : '';
+  const q = buyQty(), t = parseNum($('b-total').value);
+  if (!q || t == null) { $('b-preview').textContent = ''; return; }
+  let txt = `= ${qty(q, sel.unit)} a ${brl(t / q)} por ${sel.unit}`;
+  if (sel.pack_size) txt += ` (${brl(t / q * sel.pack_size)} por ${sel.pack_label || 'embalagem'})`;
+  if (sel.avg_cost) txt += ` · média atual ${brl(sel.avg_cost)}/${sel.unit}`;
+  $('b-preview').textContent = txt;
 }
 async function saveBuy() {
-  const q = parseNum($('b-qty').value), t = parseNum($('b-total').value);
+  const q = buyQty(), t = parseNum($('b-total').value);
   if (!(q > 0) || t == null) return toast('Informe quantidade e valor', 'error');
   await safe(async () => {
     const r = await api.purchase({ item_id: sel.id, quantity: q, total_price: t, day: $('b-day').value || null, notes: $('b-notes').value.trim() || null });

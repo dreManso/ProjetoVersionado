@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Item, Movement
 from ..schemas import AdjustIn, PurchaseIn
-from ..services import add_movement, current_cost, to_datetime, update_avg_cost
+from ..services import add_movement, convert_unit, current_cost, to_datetime, update_avg_cost
 
 router = APIRouter()
 
@@ -24,9 +24,13 @@ def _stock_item(db: Session, id: int) -> Item:
 def purchase(data: PurchaseIn, db: Session = Depends(get_db)):
     """Entrada de compra com peso/quantidade bruta e valor total pago."""
     item = _stock_item(db, data.item_id)
-    unit_price = data.total_price / data.quantity
-    update_avg_cost(item, data.quantity, data.total_price)
-    add_movement(db, item, data.quantity, "compra", unit_cost=unit_price,
+    try:
+        quantity = convert_unit(data.quantity, data.unit, item.unit)
+    except ValueError:
+        raise HTTPException(400, f"'{item.name}' é controlado em {item.unit}: use uma unidade compatível")
+    unit_price = data.total_price / quantity
+    update_avg_cost(item, quantity, data.total_price)
+    add_movement(db, item, quantity, "compra", unit_cost=unit_price,
                  when=to_datetime(data.day), notes=data.notes)
     db.commit()
     return {"item_id": item.id, "stock": item.stock, "avg_cost": round(item.avg_cost, 4),

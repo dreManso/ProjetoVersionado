@@ -28,6 +28,22 @@ CONSUMPTION_TYPES = ("venda", "producao_consumo")
 EPS = 1e-9
 
 
+# ── unidades ──────────────────────────────────────────────────────────────────
+
+UNIT_FAMILY = {"kg": ("peso", 1000.0), "g": ("peso", 1.0),
+               "L": ("volume", 1000.0), "mL": ("volume", 1.0), "un": ("unidade", 1.0)}
+
+
+def convert_unit(quantity: float, from_unit, to_unit: str) -> float:
+    """Converte g↔kg e mL↔L. Levanta ValueError entre famílias diferentes."""
+    if not from_unit or from_unit == to_unit:
+        return quantity
+    a, b = UNIT_FAMILY.get(from_unit), UNIT_FAMILY.get(to_unit)
+    if not a or not b or a[0] != b[0]:
+        raise ValueError(f"não dá para converter {from_unit} em {to_unit}")
+    return quantity * a[1] / b[1]
+
+
 # ── datas e movimentos ────────────────────────────────────────────────────────
 
 def to_datetime(day):
