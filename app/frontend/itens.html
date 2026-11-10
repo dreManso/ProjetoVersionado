@@ -138,6 +138,11 @@
               </div>
             </div>
 
+            <div class="form-check form-switch mb-2 show-stock">
+              <input class="form-check-input" type="checkbox" id="f-direct">
+              <label class="form-check-label fw-semibold" for="f-direct">Também vendo direto ao cliente</label>
+              <div class="help">Refrigerante, água, cerveja, sobremesa pronta... Aparece no fechamento de vendas e cada venda tira 1 <span class="u"></span> do estoque. Não precisa cadastrar como prato.</div>
+            </div>
             <div class="row g-2 mb-1 show-venda">
               <div class="col-5">
                 <label class="form-label">Lucro sobre o custo</label>
@@ -145,13 +150,14 @@
                   <span class="input-group-text">%</span></div>
               </div>
               <div class="col-7">
-                <label class="form-label fw-semibold">Preço venda direta</label>
+                <label class="form-label fw-semibold">Preço venda direta <span class="help" id="f-priceunit"></span></label>
                 <div class="input-group"><span class="input-group-text">R$</span>
                   <input class="form-control" id="f-price" inputmode="decimal"></div>
               </div>
             </div>
             <div class="mb-3 show-venda help">Digite o lucro OU o preço: o outro é calculado.
-              <div id="f-pricecalc" class="fs-6 text-body mt-1"></div></div>
+              <div id="f-pricecalc" class="fs-6 text-body mt-1"></div>
+              <div id="direct-preview" class="fs-6 text-body mt-1"></div></div>
             <div class="form-check mb-3">
               <input class="form-check-input" type="checkbox" id="f-active" checked>
               <label class="form-check-label" for="f-active">Ativo</label>
@@ -203,7 +209,7 @@ const $ = id => document.getElementById(id);
 const HELP = {
   compra: 'O que vem do fornecedor. O custo é atualizado pela média das compras (peso bruto e valor total).',
   producao: 'O que a cozinha produz ou fraciona e guarda em estoque. A ficha diz o que entra em UMA receita e o rendimento diz o que sai de fato.',
-  venda: 'Pratos do cardápio. A ficha diz o que vai em 1 prato (porções, molhos, embalagens). A venda baixa exatamente esses itens.',
+  venda: 'Pratos do cardápio. A ficha diz o que vai em 1 prato (porções, molhos, embalagens). A venda baixa exatamente esses itens. Refrigerante, água e outros itens de revenda não precisam de prato: no item comprado, marque "Também vendo direto ao cliente".',
 };
 
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { kind = b.dataset.kind; render(); });
@@ -220,8 +226,9 @@ async function saveFee() {
 }
 
 function statusBadge(i) {
-  if (!i.cost_issues.length) return '';
-  return `<i class="bi bi-exclamation-triangle-fill text-warning" title="${esc(i.cost_issues.join('\n'))}"></i>`;
+  const direct = i.direct_sale ? ' <span class="badge bg-info text-dark" title="Item comprado/produzido vendido direto ao cliente">venda direta</span>' : '';
+  if (!i.cost_issues.length) return direct;
+  return `<i class="bi bi-exclamation-triangle-fill text-warning" title="${esc(i.cost_issues.join('\n'))}"></i>` + direct;
 }
 
 function render() {
@@ -231,7 +238,7 @@ function render() {
       <div class="input-group input-group-sm" style="width:100px"><input class="form-control text-end" id="fee-input" inputmode="decimal" value="${num(fee, 2)}"><span class="input-group-text">%</span></div>
       <button class="btn btn-sm btn-outline-primary" onclick="saveFee()">Salvar</button>
       <span class="help">Preço iFood = venda direta ÷ ${num(1 - fee / 100, 2)}</span></div>` : '');
-  const rows = all.filter(i => i.kind === kind);
+  const rows = all.filter(i => i.kind === kind || (kind === 'venda' && i.direct_sale));
   const heads = {
     compra: ['Nome', 'Estoque', 'Custo médio', 'Embalagem', 'Cobertura', ''],
     producao: ['Nome', 'Estoque', 'Rende/receita', 'Custo pela ficha', 'Custo real médio', 'Cobertura / lote mín.', ''],
@@ -256,7 +263,7 @@ function render() {
         <td class="num">${i.avg_cost ? unitPrice(i.avg_cost, i.unit) : '—'}</td>
         <td class="num">${num(i.coverage_days)} dias${i.min_batch ? ' / ' + qty(i.min_batch, i.unit) : ''}</td>${actions}</tr>`;
     return `<tr>${name}
-        <td class="num">${brl(i.unit_cost)}</td>
+        <td class="num">${brl(i.sale_cost ?? i.unit_cost)}${i.direct_sale ? `<div class="help">custo de 1 ${esc(i.unit)}</div>` : ''}</td>
         <td class="num ${i.markup_percent != null && i.markup_percent < 100 ? 'text-danger fw-bold' : ''}">${pct(i.markup_percent)}</td>
         <td class="num">${brl(i.selling_price)}</td><td class="num">${brl(i.ifood_price)}</td>
         <td class="num ${i.cmv_percent > 40 ? 'text-danger fw-bold' : ''}">${pct(i.cmv_percent)}</td>${actions}</tr>`;
@@ -269,7 +276,8 @@ function toggleKind() {
   const k = $('f-kind').value;
   document.querySelectorAll('.show-compra').forEach(e => e.classList.toggle('d-none', k !== 'compra'));
   document.querySelectorAll('.show-producao').forEach(e => e.classList.toggle('d-none', k !== 'producao'));
-  document.querySelectorAll('.show-venda').forEach(e => e.classList.toggle('d-none', k !== 'venda'));
+  const sells = k === 'venda' || $('f-direct').checked;
+  document.querySelectorAll('.show-venda').forEach(e => e.classList.toggle('d-none', !sells));
   document.querySelectorAll('.show-stock').forEach(e => e.classList.toggle('d-none', k === 'venda'));
   document.querySelectorAll('.show-recipe').forEach(e => e.classList.toggle('d-none', k === 'compra'));
   $('recipe-help').textContent = k === 'producao'
@@ -364,8 +372,11 @@ function renderLossCalc() {
     ? `Custo nas receitas: ${unitPrice(c / (1 - loss / 100), u).replace('/', ' por ')} (+${num(extra, 1)}%)`
     : `Custo nas receitas: +${num(extra, 1)}%`;
 }
-$('f-loss').addEventListener('input', renderLossCalc);
+$('f-loss').addEventListener('input', () => { renderLossCalc(); renderPreview(); });
+['f-cost', 'f-pack', 'f-yield'].forEach(id => $(id).addEventListener('input', () => renderPreview()));
+['f-costbasis', 'f-packunit', 'f-yieldunit'].forEach(id => $(id).addEventListener('change', () => renderPreview()));
 $('f-kind').onchange = toggleKind;
+$('f-direct').onchange = () => { toggleKind(); renderPreview(); };
 $('f-unit').onchange = updateUnits;
 ['f-pack', 'f-packunit', 'f-packlabel'].forEach(id => $(id).addEventListener('input', renderCostBasis));
 $('f-packunit').addEventListener('change', renderCostBasis);
@@ -387,7 +398,7 @@ function openCreate() {
   setField('f-batch', 0); setField('f-cov', 6); setField('f-min', 0); setField('f-loss', '');
   $('f-kind').value = kind; $('f-unit').value = kind === 'producao' ? 'un' : 'kg';
   $('f-packunit').innerHTML = ''; $('f-costbasis').innerHTML = '';
-  $('f-active').checked = true;
+  $('f-active').checked = true; $('f-direct').checked = false;
   $('btn-del').classList.add('d-none');
   toggleKind(); mItem().show();
 }
@@ -410,7 +421,7 @@ function openEdit(id) {
   setField('f-min', i.min_stock); setField('f-price', i.selling_price ? dec(i.selling_price, 2) : ''); setField('f-notes', i.notes);
   priceDriver = 'price'; setField('f-markup', '');
   setField('f-loss', i.loss_percent || '');
-  $('f-active').checked = i.active;
+  $('f-active').checked = i.active; $('f-direct').checked = !!i.direct_sale;
   // reabre na unidade em que foi digitada (1500 g continua 1500 g)
   lines = i.recipe.map(r => ({ component_id: r.component_id, quantity: r.display_quantity, unit: r.display_unit, loss: r.loss_percent }));
   $('btn-del').classList.remove('d-none');
@@ -500,20 +511,39 @@ function renderPreview() {
       const perBig = total / y / convertQty(it.portion_size, it.portion_unit, big);
       html += ` → <strong>${brl(total / y)}</strong> por porção · <strong>${brl(perBig)}</strong> por ${big} pronto`;
     } else html += ` → <strong>${unitPrice(total / y, u).replace('/', '</strong> por ')}`;
-  } else if (k === 'venda') {
-    if (priceDriver === 'markup') {
-      const m = parseNum($('f-markup').value);
-      if (m != null && total > 0) $('f-price').value = dec(total * (1 + m / 100), 2);
-    } else {
-      const pr = parseNum($('f-price').value);
-      $('f-markup').value = pr && total > 0 ? dec((pr / total - 1) * 100, 1) : '';
-    }
-    const p = parseNum($('f-price').value);
-    if (p) { const cmv = total / p * 100; html += ` · CMV <strong class="${cmv > 40 ? 'text-danger' : 'text-success'}">${pct(cmv)}</strong>`; }
-    $('f-pricecalc').innerHTML = p ? `Preço iFood: <strong>${brl(p / (1 - fee / 100))}</strong> <span class="help">(taxa ${pct(fee)})</span>` : '';
   }
+  $('f-priceunit').textContent = ''; $('direct-preview').innerHTML = '';
+  if (k === 'venda') html += pricing(total);
+  else if ($('f-direct').checked) {
+    // vendido direto: custo de 1 unidade de estoque, com a perda (lata amassada, faltando)
+    const loss = Math.min(parseNum($('f-loss').value) || 0, 95), u = $('f-unit').value;
+    const y = yieldInStock();
+    const base = k === 'compra' ? costPerStockUnit() : (y && total ? total / y : editing && editing.unit_cost);
+    const c = base ? base / (1 - loss / 100) : 0;
+    $('f-priceunit').textContent = `(por ${u === 'un' ? 'unidade' : u})`;
+    const sale = `Custo de 1 ${u} vendido: <strong>${brl(c)}</strong>${loss ? ` <span class="help">(com perda ${pct(loss)})</span>` : ''}` + pricing(c);
+    if (k === 'compra') { $('direct-preview').innerHTML = sale; return; }
+    html += '<div>' + sale + '</div>';
+  }
+  if (k === 'compra') return;
   if (missing) html += '<div class="text-warning small">Algum componente ainda não tem custo.</div>';
   $('preview').innerHTML = html;
+}
+
+// lucro ↔ preço (o último digitado manda), CMV e preço iFood
+function pricing(total) {
+  let html = '';
+  if (priceDriver === 'markup') {
+    const m = parseNum($('f-markup').value);
+    if (m != null && total > 0) $('f-price').value = dec(total * (1 + m / 100), 2);
+  } else {
+    const pr = parseNum($('f-price').value);
+    $('f-markup').value = pr && total > 0 ? dec((pr / total - 1) * 100, 1) : '';
+  }
+  const p = parseNum($('f-price').value);
+  if (p && total > 0) { const cmv = total / p * 100; html += ` · CMV <strong class="${cmv > 40 ? 'text-danger' : 'text-success'}">${pct(cmv)}</strong>`; }
+  $('f-pricecalc').innerHTML = p ? `Preço iFood: <strong>${brl(p / (1 - fee / 100))}</strong> <span class="help">(taxa ${pct(fee)})</span>` : '';
+  return html;
 }
 
 async function save() {
@@ -525,7 +555,7 @@ async function save() {
     portion_size: formItem().portion_size, portion_unit: formItem().portion_size ? $('f-portionunit').value : null,
     min_batch: parseNum($('f-batch').value) || 0,
     pack_size: packSizeInStockUnit(), pack_label: $('f-packlabel').value.trim() || null,
-    selling_price: parseNum($('f-price').value), notes: $('f-notes').value.trim() || null,
+    selling_price: k === 'venda' || $('f-direct').checked ? parseNum($('f-price').value) : null, notes: $('f-notes').value.trim() || null,
     active: $('f-active').checked,
     recipe: k === 'compra' ? [] : lines.filter(l => l.component_id && l.quantity > 0)
       .map(l => ({ component_id: l.component_id, quantity: l.quantity, unit: l.unit, loss_percent: l.loss ?? null })),
@@ -537,6 +567,7 @@ async function save() {
   if (k === 'compra' && $('f-costbasis').value === 'pack' && parseNum($('f-cost').value) != null && !packSizeInStockUnit())
     return toast('Informe o tamanho da embalagem', 'error');
   if (!data.name) return toast('Informe o nome', 'error');
+  if (k !== 'venda' && $('f-direct').checked && !data.selling_price) return toast('Informe o preço de venda direta', 'error');
   if (lines.some(l => (l.component_id && !(l.quantity > 0)) || (!l.component_id && l.quantity))) return toast('Complete ou remova as linhas incompletas da ficha', 'error');
   await safe(async () => {
     if (editing) await api.updateItem(editing.id, data); else await api.createItem(data);

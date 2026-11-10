@@ -52,6 +52,7 @@ Batata 2 kg → Porção 200 g → Batata frita P (1 porção) / G (2 porções)
 
 - **A venda baixa um nível só:** vender um Estrogonofe tira 1 bife, 1 porção de arroz e 1 embalagem. O coxão mole cru só sai do estoque quando os bifes são produzidos.
 - **Perdas e ganhos ficam no custo:** a limpeza do coxão, a água do frango e o cozimento do arroz aparecem na diferença entre o que entrou e o que rendeu. O app mostra o desvio em relação à ficha e avisa quando o rendimento fica 5% ou mais abaixo dela.
+- **Revenda (refrigerante, água, cerveja):** é só o item comprado com a opção "Também vendo direto ao cliente" e o preço. Não precisa de prato: a venda tira do estoque do próprio item e entra na lista de compras.
 - **Estoque negativo é um aviso:** significa que alguma produção ou compra não foi lançada.
 
 ## Telas

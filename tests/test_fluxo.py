@@ -348,3 +348,27 @@ def test_reposicao_porcoes_prontas_evitam_compra():
     rep = client.get("/api/reports/replenishment").json()
     # 1 bife/dia; 54 bifes prontos cobrem muito mais que 6 dias → nada a produzir nem comprar
     assert rep["produce"] == [] and rep["buy"] == []
+
+
+def test_item_comprado_vendido_direto_sem_cadastrar_prato():
+    coca = item(name="Coca-Cola lata", kind="compra", unit="un", avg_cost=2.5, loss_percent=0,
+                pack_size=12, pack_label="fardo", coverage_days=6, selling_price=7.5)
+    assert coca["direct_sale"] is True
+    assert coca["markup_percent"] == pytest.approx(200.0)       # 2,50 × 3 = 7,50
+    assert coca["ifood_price"] == pytest.approx(10.71, abs=0.01)
+    client.post("/api/stock/purchase", json={"item_id": coca["id"], "quantity": 12, "total_price": 30})
+    r = client.post("/api/sales", json={"lines": [{"item_id": coca["id"], "quantity": 6}]})
+    assert r.status_code == 201 and r.json()["total"] == pytest.approx(45)
+    assert get(coca["id"])["stock"] == pytest.approx(6)         # a venda tira do próprio item
+    # 6 latas ÷ 6 dias = 1/dia × 6 dias de cobertura = 6; estoque 6 → nada a comprar
+    assert client.get("/api/reports/replenishment").json()["buy"] == []
+    client.post("/api/sales", json={"lines": [{"item_id": coca["id"], "quantity": 6}]})
+    b = next(x for x in client.get("/api/reports/replenishment").json()["buy"] if x["name"] == "Coca-Cola lata")
+    assert b["daily"] == pytest.approx(2) and b["packs"] == 1   # alvo 12, estoque 0 → 1 fardo
+    # desfazer devolve ao estoque
+    client.delete(f"/api/sales/{client.get('/api/sales').json()[0]['id']}")
+    assert get(coca["id"])["stock"] == pytest.approx(6)
+    # sem preço não é vendável
+    agua = item(name="Água", kind="compra", unit="un")
+    assert agua["direct_sale"] is False
+    assert client.post("/api/sales", json={"lines": [{"item_id": agua["id"], "quantity": 1}]}).status_code == 400

@@ -20,8 +20,8 @@ def register_sales(data: SalesIn, db: Session = Depends(get_db)):
 
     for line in data.lines:
         dish = db.get(Item, line.item_id)
-        if not dish or dish.kind != "venda":
-            raise HTTPException(400, f"Item {line.item_id} não é um prato do cardápio")
+        if not dish or (dish.kind != "venda" and not dish.selling_price):
+            raise HTTPException(400, f"Item {line.item_id} não é vendido (sem preço de venda)")
         if line.unit_price is not None:
             price = line.unit_price
         elif data.channel == "ifood":
@@ -32,9 +32,12 @@ def register_sales(data: SalesIn, db: Session = Depends(get_db)):
                     total=round(price * line.quantity, 2), channel=data.channel, date=when)
         db.add(sale)
         db.flush()
-        if not dish.recipe:
+        if dish.kind != "venda":   # vendido direto: sai do próprio estoque
+            add_movement(db, dish, -line.quantity, "venda", unit_cost=current_cost(dish), when=when,
+                         notes=f"Venda direta × {line.quantity:g}", sale_id=sale.id)
+        elif not dish.recipe:
             warnings.append(f"{dish.name}: sem ficha técnica, nada foi baixado do estoque")
-        for comp_line in dish.recipe:
+        for comp_line in dish.recipe if dish.kind == "venda" else []:
             comp = comp_line.component
             add_movement(db, comp, -comp_line.quantity * line.quantity, "venda",
                          unit_cost=current_cost(comp), when=when,

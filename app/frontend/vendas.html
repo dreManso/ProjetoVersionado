@@ -72,7 +72,7 @@ $('s-filter').oninput = renderGrid;
 // preço de cada prato conforme o canal (venda direta ou iFood)
 const channelPrice = d => ($('s-channel').value === 'ifood' ? d.ifood_price : d.selling_price) || 0;
 async function load() {
-  dishes = (await api.items('venda')).filter(d => d.active);
+  dishes = (await api.items()).filter(d => d.active && (d.kind === 'venda' || d.direct_sale));
   dishes.forEach(d => { if (prices[d.id] == null) prices[d.id] = channelPrice(d); });
   renderGrid(); loadHist();
 }
@@ -82,7 +82,7 @@ function renderGrid() {
   const f = norm($('s-filter').value);
   const rows = dishes.filter(d => !f || norm(d.name).includes(f));
   $('grid').innerHTML = rows.length ? rows.map(d => `<tr class="${qtys[d.id] ? 'table-success' : ''}">
-      <td>${esc(d.name)}${d.recipe.length ? '' : ' <i class="bi bi-exclamation-triangle text-warning" title="Sem ficha técnica"></i>'}</td>
+      <td>${esc(d.name)}${d.direct_sale ? ' <span class="badge bg-info text-dark">direto</span>' : d.recipe.length ? '' : ' <i class="bi bi-exclamation-triangle text-warning" title="Sem ficha técnica"></i>'}</td>
       <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${prices[d.id] != null ? prices[d.id].toFixed(2).replace('.', ',') : ''}" oninput="prices[${d.id}]=parseNum(this.value)||0;totals()"></td>
       <td><input class="form-control form-control-sm qty-input" inputmode="numeric" value="${qtys[d.id] || ''}" oninput="qtys[${d.id}]=parseNum(this.value)||0;this.closest('tr').classList.toggle('table-success',qtys[${d.id}]>0);totals()"></td>
       <td class="num" id="sub-${d.id}"></td></tr>`).join('')

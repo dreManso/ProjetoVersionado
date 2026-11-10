@@ -8,7 +8,7 @@ from ..database import get_db
 from ..models import Item, Movement, RecipeLine
 from ..schemas import ItemIn
 from ..services import (cost_breakdown, creates_cycle, from_stock_units, get_setting, ifood_price,
-                        item_units, markup_percent, to_stock_units, unit_cost)
+                        item_units, markup_percent, sale_cost, to_stock_units, unit_cost)
 
 router = APIRouter()
 
@@ -37,7 +37,8 @@ def display_yield(item: Item) -> dict:
 
 def serialize(item: Item, memo=None, fee=None) -> dict:
     cost, issues = unit_cost(item, {} if memo is None else memo)
-    if fee is None and item.kind == "venda":
+    sold = item.kind == "venda" or bool(item.selling_price)
+    if fee is None and sold:
         fee = get_setting(object_session(item), "ifood_fee_percent")
     data = {
         "id": item.id,
@@ -58,6 +59,7 @@ def serialize(item: Item, memo=None, fee=None) -> dict:
         "pack_size": item.pack_size,
         "pack_label": item.pack_label,
         "selling_price": item.selling_price,
+        "direct_sale": item.kind != "venda" and bool(item.selling_price),
         "notes": item.notes,
         "active": item.active,
         "recipe": [
@@ -79,7 +81,9 @@ def serialize(item: Item, memo=None, fee=None) -> dict:
         "markup_percent": None,
         "ifood_price": None,
     }
-    if item.kind == "venda":
+    if sold:
+        cost = sale_cost(item, cost)
+        data["sale_cost"] = None if cost is None else round(cost, 6)
         if cost and item.selling_price:
             data["cmv_percent"] = round(cost / item.selling_price * 100, 1)
         data["markup_percent"] = markup_percent(item.selling_price, cost)
@@ -142,7 +146,8 @@ def _apply(db: Session, item: Item, data: ItemIn):
     item.min_batch = data.min_batch if data.kind == "producao" else 0.0
     item.pack_size = data.pack_size if data.kind == "compra" else None
     item.pack_label = data.pack_label if data.kind == "compra" else None
-    item.selling_price = data.selling_price if data.kind == "venda" else None
+    # comprado/produzido com preço = vendido direto (refrigerante, água, farofa avulsa)
+    item.selling_price = data.selling_price or None
     item.notes = data.notes
     item.active = data.active
     if data.avg_cost is not None:

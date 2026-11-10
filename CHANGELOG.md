@@ -2,6 +2,12 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.9.0 — 10/11/2026
+- Revenda sem cadastro duplo: no item comprado (refrigerante, água, cerveja...), marque "Também vendo direto ao cliente" e informe o preço. Não precisa criar um prato.
+- O item aparece no fechamento de vendas e na aba "Pratos do cardápio" (marcado "venda direta"), com lucro, CMV e preço iFood.
+- Cada venda tira do estoque do próprio item, e a média de vendas entra na lista de compras (arredondada para o fardo/caixa).
+- Vale também para itens produzidos vendidos avulsos (ex.: porção de farofa).
+
 ## 2.8.0 — 10/11/2026
 - Reposição calculada pelas VENDAS: a média de pratos vendidos por dia desce pelas fichas (prato → porções → insumos) e forma a lista de produção e a de compras.
 - Produções, compras e contagens não entram mais na média (uma produção de teste não infla as compras).

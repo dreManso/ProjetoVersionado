@@ -201,7 +201,9 @@ def cost_breakdown(item: Item) -> dict:
             "total": None if c is None else round(c * line.cost_quantity, 4),
         })
     suggested = {}
-    if item.kind == "venda" and cost:
+    sold = item.kind == "venda" or bool(item.selling_price)
+    cost = sale_cost(item, cost) if sold else cost
+    if sold and cost:
         # Lucro sobre o custo (markup): preço = custo × (1 + lucro)
         for m in (100, 150, 200, 250):
             suggested[f"Lucro {m}%"] = round(cost * (1 + m / 100), 2)
@@ -216,12 +218,23 @@ def cost_breakdown(item: Item) -> dict:
         "avg_cost": item.avg_cost,
         "selling_price": item.selling_price,
         "cmv_percent": round(cost / item.selling_price * 100, 1)
-        if (item.kind == "venda" and cost and item.selling_price) else None,
-        "markup_percent": markup_percent(item.selling_price, cost) if item.kind == "venda" else None,
+        if (sold and cost and item.selling_price) else None,
+        "markup_percent": markup_percent(item.selling_price, cost) if sold else None,
         "lines": lines,
         "issues": issues,
         "suggested_prices": suggested,
     }
+
+
+def sale_cost(item: Item, cost=None):
+    """Custo de 1 unidade vendida. Prato: custo da ficha. Item vendido direto
+    (refrigerante, água): custo do item com a perda (lata amassada, faltando)."""
+    if cost is None:
+        cost, _ = unit_cost(item)
+    if cost is None or item.kind == "venda":
+        return cost
+    loss = min(max(item.loss_percent or 0.0, 0.0), 95.0)
+    return cost / (1 - loss / 100)
 
 
 def current_cost(item: Item) -> float:
@@ -303,7 +316,7 @@ def _topological(items_by_id: dict) -> list:
 def replenishment(db: Session, now=None) -> dict:
     """
     A demanda nasce nos PRATOS VENDIDOS:
-      1. média de pratos vendidos por dia (últimas 4 semanas);
+      1. média de pratos (e itens vendidos direto) vendidos por dia (últimas 4 semanas);
       2. pelas fichas, vira consumo diário de porções/subprodutos e insumos
          (prato → porção → insumo);
       3. estoque na cadeia = estoque do item + o que já está pronto nos itens
@@ -326,6 +339,8 @@ def replenishment(db: Session, now=None) -> dict:
         rate = sold.get(d.id, 0.0)
         for line in d.recipe if rate else []:
             demand[line.component_id] += rate * line.quantity
+    for it in items:   # vendidos direto (refrigerante): a venda tira do próprio item
+        demand[it.id] += sold.get(it.id, 0.0)
     for it in order:
         if it.kind == "producao" and it.yield_quantity and demand[it.id]:
             for line in it.recipe:
