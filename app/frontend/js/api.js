@@ -31,6 +31,8 @@ const api = {
     undoSale:     (id)     => request('DELETE', `/sales/${id}`),
     summary:      ()       => request('GET', '/reports/summary'),
     replenishment:()       => request('GET', '/reports/replenishment'),
+    settings:     ()       => request('GET', '/settings'),
+    saveSettings: (d)      => request('PUT', '/settings', d),
 };
 
 // ── formatação ────────────────────────────────────────────────────────────────

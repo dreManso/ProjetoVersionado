@@ -102,9 +102,18 @@ class Sale(Base):
     quantity = Column(Float, nullable=False)
     unit_price = Column(Float, nullable=False)
     total = Column(Float, nullable=False)
+    channel = Column(String(10), nullable=False, default="direta")   # direta | ifood
     date = Column(DateTime, nullable=False, default=datetime.now)
 
     item = relationship("Item")
+
+
+class Setting(Base):
+    """Configurações gerais (ex.: taxa do iFood)."""
+    __tablename__ = "settings"
+
+    key = Column(String(50), primary_key=True)
+    value = Column(String(255), nullable=False)
 
 
 class Movement(Base):

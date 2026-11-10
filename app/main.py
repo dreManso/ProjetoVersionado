@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
-from .routers import items, production, reports, sales, stock
+from .routers import items, production, reports, sales, settings, stock
 from .version import __version__
 
 init_db()
@@ -24,6 +24,7 @@ app.include_router(stock.router, prefix="/api/stock", tags=["Estoque"])
 app.include_router(production.router, prefix="/api/production", tags=["Produção"])
 app.include_router(sales.router, prefix="/api/sales", tags=["Vendas"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Relatórios"])
+app.include_router(settings.router, prefix="/api/settings", tags=["Configurações"])
 
 
 @app.get("/api/version", tags=["Sistema"])

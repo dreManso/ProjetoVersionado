@@ -21,7 +21,7 @@
     <li class="nav-item"><button class="nav-link" data-kind="producao">Produzidos <span class="help">(porções, molhos, nhoque)</span></button></li>
     <li class="nav-item"><button class="nav-link" data-kind="venda">Pratos do cardápio</button></li>
   </ul>
-  <p class="help" id="tab-help"></p>
+  <div class="help mb-2" id="tab-help"></div>
 
   <div class="card shadow-sm">
     <div class="table-responsive">
@@ -138,10 +138,20 @@
               </div>
             </div>
 
-            <div class="mb-3 show-venda">
-              <label class="form-label fw-semibold">Preço de venda (R$)</label>
-              <input class="form-control" id="f-price" inputmode="decimal">
+            <div class="row g-2 mb-1 show-venda">
+              <div class="col-5">
+                <label class="form-label">Lucro sobre o custo</label>
+                <div class="input-group"><input class="form-control" id="f-markup" inputmode="decimal" placeholder="ex: 200">
+                  <span class="input-group-text">%</span></div>
+              </div>
+              <div class="col-7">
+                <label class="form-label fw-semibold">Preço venda direta</label>
+                <div class="input-group"><span class="input-group-text">R$</span>
+                  <input class="form-control" id="f-price" inputmode="decimal"></div>
+              </div>
             </div>
+            <div class="mb-3 show-venda help">Digite o lucro OU o preço: o outro é calculado.
+              <div id="f-pricecalc" class="fs-6 text-body mt-1"></div></div>
             <div class="form-check mb-3">
               <input class="form-check-input" type="checkbox" id="f-active" checked>
               <label class="form-check-label" for="f-active">Ativo</label>
@@ -198,7 +208,16 @@ const HELP = {
 
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { kind = b.dataset.kind; render(); });
 
-async function load() { all = await api.items(); render(); }
+let fee = 30;  // taxa do iFood (%), uma só para todos os pratos
+async function load() {
+  [all, { ifood_fee_percent: fee }] = await Promise.all([api.items(), api.settings()]);
+  render();
+}
+async function saveFee() {
+  const v = parseNum($('fee-input').value);
+  if (v == null || v < 0 || v > 90) return toast('Informe uma taxa entre 0 e 90%', 'error');
+  await safe(async () => { await api.saveSettings({ ifood_fee_percent: v }); toast(`Taxa do iFood: ${pct(v)}. Preços iFood recalculados.`); await load(); });
+}
 
 function statusBadge(i) {
   if (!i.cost_issues.length) return '';
@@ -207,12 +226,16 @@ function statusBadge(i) {
 
 function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
-  $('tab-help').textContent = HELP[kind];
+  $('tab-help').innerHTML = esc(HELP[kind]) + (kind === 'venda' ? `
+    <div class="d-flex align-items-center gap-2 mt-2 text-body">Taxa do iFood:
+      <div class="input-group input-group-sm" style="width:100px"><input class="form-control text-end" id="fee-input" inputmode="decimal" value="${num(fee, 2)}"><span class="input-group-text">%</span></div>
+      <button class="btn btn-sm btn-outline-primary" onclick="saveFee()">Salvar</button>
+      <span class="help">Preço iFood = venda direta ÷ ${num(1 - fee / 100, 2)}</span></div>` : '');
   const rows = all.filter(i => i.kind === kind);
   const heads = {
     compra: ['Nome', 'Estoque', 'Custo médio', 'Embalagem', 'Cobertura', ''],
     producao: ['Nome', 'Estoque', 'Rende/receita', 'Custo pela ficha', 'Custo real médio', 'Cobertura / lote mín.', ''],
-    venda: ['Prato', 'Custo pela ficha', 'Preço', 'CMV', 'Componentes', ''],
+    venda: ['Prato', 'Custo pela ficha', 'Lucro', 'Venda direta', 'iFood', 'CMV', ''],
   }[kind];
   $('thead').innerHTML = '<tr>' + heads.map((h, i) => `<th class="${i > 0 && i < heads.length - 1 ? 'num' : ''}">${h}</th>`).join('') + '</tr>';
   if (!rows.length) { $('tbody').innerHTML = `<tr><td colspan="${heads.length}" class="text-center text-muted py-4">Nenhum item cadastrado</td></tr>`; return; }
@@ -233,9 +256,10 @@ function render() {
         <td class="num">${i.avg_cost ? unitPrice(i.avg_cost, i.unit) : '—'}</td>
         <td class="num">${num(i.coverage_days)} dias${i.min_batch ? ' / ' + qty(i.min_batch, i.unit) : ''}</td>${actions}</tr>`;
     return `<tr>${name}
-        <td class="num">${brl(i.unit_cost)}</td><td class="num">${brl(i.selling_price)}</td>
-        <td class="num ${i.cmv_percent > 40 ? 'text-danger fw-bold' : ''}">${pct(i.cmv_percent)}</td>
-        <td class="num">${i.recipe.length}</td>${actions}</tr>`;
+        <td class="num">${brl(i.unit_cost)}</td>
+        <td class="num ${i.markup_percent != null && i.markup_percent < 100 ? 'text-danger fw-bold' : ''}">${pct(i.markup_percent)}</td>
+        <td class="num">${brl(i.selling_price)}</td><td class="num">${brl(i.ifood_price)}</td>
+        <td class="num ${i.cmv_percent > 40 ? 'text-danger fw-bold' : ''}">${pct(i.cmv_percent)}</td>${actions}</tr>`;
   }).join('');
 }
 
@@ -352,12 +376,17 @@ $('f-packunit').addEventListener('change', renderCostBasis);
 $('f-costbasis').onchange = () => { costDirty = true; basisTouched = true; renderCostCalc(); };
 $('f-cost').oninput = () => { costDirty = true; renderCostCalc(); };
 $('f-yield').oninput = renderYieldCalc;
-$('f-price').oninput = renderPreview;
+// lucro ↔ preço: o último digitado manda
+let priceDriver = 'price';
+$('f-price').oninput = () => { priceDriver = 'price'; renderPreview(); };
+$('f-markup').oninput = () => { priceDriver = 'markup'; renderPreview(); };
+const dec = (v, d) => v.toFixed(d).replace('.', ',');
 
 function openCreate() {
   editing = null; lines = []; costDirty = false; basisTouched = false;
   $('mTitle').textContent = 'Novo item';
-  ['f-name', 'f-cost', 'f-pack', 'f-packlabel', 'f-yield', 'f-price', 'f-notes', 'f-portion'].forEach(id => setField(id, ''));
+  ['f-name', 'f-cost', 'f-pack', 'f-packlabel', 'f-yield', 'f-price', 'f-notes', 'f-portion', 'f-markup'].forEach(id => setField(id, ''));
+  priceDriver = 'price';
   $('f-portionunit').value = 'g'; $('f-yieldunit').innerHTML = '';
   setField('f-batch', 0); setField('f-cov', 6); setField('f-min', 0); setField('f-loss', '');
   $('f-kind').value = kind; $('f-unit').value = kind === 'producao' ? 'un' : 'kg';
@@ -382,7 +411,8 @@ function openEdit(id) {
   setField('f-portion', i.portion_size); $('f-portionunit').value = i.portion_unit || 'g';
   setField('f-yield', i.yield_display ?? i.yield_quantity); pendingYieldUnit = i.yield_unit || i.unit;
   setField('f-batch', i.min_batch); setField('f-cov', i.coverage_days);
-  setField('f-min', i.min_stock); setField('f-price', i.selling_price); setField('f-notes', i.notes);
+  setField('f-min', i.min_stock); setField('f-price', i.selling_price ? dec(i.selling_price, 2) : ''); setField('f-notes', i.notes);
+  priceDriver = 'price'; setField('f-markup', '');
   setField('f-loss', i.loss_percent || '');
   $('f-active').checked = i.active;
   // reabre na unidade em que foi digitada (1500 g continua 1500 g)
@@ -476,8 +506,16 @@ function renderPreview() {
       html += ` → <strong>${brl(total / y)}</strong> por porção · <strong>${brl(perBig)}</strong> por ${big} pronto`;
     } else html += ` → <strong>${unitPrice(total / y, u).replace('/', '</strong> por ')}`;
   } else if (k === 'venda') {
+    if (priceDriver === 'markup') {
+      const m = parseNum($('f-markup').value);
+      if (m != null && total > 0) $('f-price').value = dec(total * (1 + m / 100), 2);
+    } else {
+      const pr = parseNum($('f-price').value);
+      $('f-markup').value = pr && total > 0 ? dec((pr / total - 1) * 100, 1) : '';
+    }
     const p = parseNum($('f-price').value);
     if (p) { const cmv = total / p * 100; html += ` · CMV <strong class="${cmv > 40 ? 'text-danger' : 'text-success'}">${pct(cmv)}</strong>`; }
+    $('f-pricecalc').innerHTML = p ? `Preço iFood: <strong>${brl(p / (1 - fee / 100))}</strong> <span class="help">(taxa ${pct(fee)})</span>` : '';
   }
   if (missing) html += '<div class="text-warning small">Algum componente ainda não tem custo.</div>';
   $('preview').innerHTML = html;
@@ -529,11 +567,12 @@ async function viewCost(id) {
           <td class="num">${l.loss_percent ? `${pct(l.loss_percent)} → ${l.unit === 'un' ? num(l.gross_quantity, 2) + ' un' : qtyF(l.gross_quantity, l.unit)}` : '—'}</td>
           <td class="num">${unitPrice(l.unit_cost, l.unit)}</td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
         <tfoot class="fw-bold"><tr><td colspan="4" class="text-end">Total da ficha</td><td class="num">${brl(c.recipe_cost)}</td></tr>${per}
-          ${c.selling_price ? `<tr><td colspan="4" class="text-end">Preço de venda · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.cmv_percent)}</td></tr>` : ''}
+          ${c.selling_price ? `<tr><td colspan="4" class="text-end">Venda direta · lucro · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.markup_percent)} · ${pct(c.cmv_percent)}</td></tr>
+          <tr><td colspan="4" class="text-end">Preço iFood (taxa ${pct(fee)})</td><td class="num">${brl(c.selling_price / (1 - fee / 100))}</td></tr>` : ''}
           ${c.kind === 'producao' && c.avg_cost ? `<tr><td colspan="4" class="text-end">Custo real médio (produções registradas)</td><td class="num">${unitPrice(c.avg_cost, c.unit)}</td></tr>` : ''}</tfoot>
       </table>
       ${c.issues.length ? `<div class="alert alert-warning small">${c.issues.map(esc).join('<br>')}</div>` : ''}
-      ${Object.keys(c.suggested_prices).length ? `<div><strong>Preço sugerido por CMV desejado:</strong><div class="d-flex flex-wrap gap-2 mt-1">${Object.entries(c.suggested_prices).map(([k, v]) => `<span class="badge bg-secondary fs-6">${k} → ${brl(v)}</span>`).join('')}</div></div>` : ''}`;
+      ${Object.keys(c.suggested_prices).length ? `<div><strong>Preço sugerido pelo lucro sobre o custo:</strong><div class="d-flex flex-wrap gap-2 mt-1">${Object.entries(c.suggested_prices).map(([k, v]) => `<span class="badge bg-secondary fs-6">${k} → ${brl(v)}</span>`).join('')}</div></div>` : ''}`;
     bootstrap.Modal.getOrCreateInstance($('mCost')).show();
   });
 }

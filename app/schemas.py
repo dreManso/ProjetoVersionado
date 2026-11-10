@@ -72,4 +72,9 @@ class SaleLineIn(BaseModel):
 
 class SalesIn(BaseModel):
     day: Optional[date] = None
+    channel: Literal["direta", "ifood"] = "direta"
     lines: List[SaleLineIn] = Field(min_length=1)
+
+
+class SettingsIn(BaseModel):
+    ifood_fee_percent: float = Field(ge=0, le=90)

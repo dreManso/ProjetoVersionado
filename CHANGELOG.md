@@ -2,6 +2,13 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.6.0 — 10/11/2026
+- Pratos: "Lucro sobre o custo %" ligado ao "Preço venda direta". Digite um e o outro é calculado.
+- Preço iFood calculado automaticamente: venda direta ÷ (1 − taxa do iFood).
+- Taxa do iFood única para todos os pratos (padrão 30%), editável na aba "Pratos do cardápio".
+- Fechamento de vendas com canal "Venda direta" ou "iFood", usando o preço de cada canal.
+- Lista de pratos mostra lucro, venda direta, iFood e CMV.
+
 ## 2.5.1 — 10/11/2026
 - Campo renomeado para "Perda (preparo ou defeito)": serve também para unidades com defeito ou faltando no pacote (ex.: embalagens).
 - Exemplo da perda usa a embalagem de compra: "1 pacote (24 un) → 23,04 un aproveitáveis".

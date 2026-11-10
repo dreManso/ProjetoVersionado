@@ -2,13 +2,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from ..database import get_db
 from ..models import Item, Movement, RecipeLine
 from ..schemas import ItemIn
-from ..services import (cost_breakdown, creates_cycle, from_stock_units, item_units,
-                        to_stock_units, unit_cost)
+from ..services import (cost_breakdown, creates_cycle, from_stock_units, get_setting, ifood_price,
+                        item_units, markup_percent, to_stock_units, unit_cost)
 
 router = APIRouter()
 
@@ -35,8 +35,10 @@ def display_yield(item: Item) -> dict:
     return {"yield_display": None if qty is None else round(qty, 6), "yield_unit": unit}
 
 
-def serialize(item: Item, memo=None) -> dict:
+def serialize(item: Item, memo=None, fee=None) -> dict:
     cost, issues = unit_cost(item, {} if memo is None else memo)
+    if fee is None and item.kind == "venda":
+        fee = get_setting(object_session(item), "ifood_fee_percent")
     data = {
         "id": item.id,
         "name": item.name,
@@ -74,9 +76,14 @@ def serialize(item: Item, memo=None) -> dict:
         "unit_cost": None if cost is None else round(cost, 6),
         "cost_issues": issues,
         "cmv_percent": None,
+        "markup_percent": None,
+        "ifood_price": None,
     }
-    if item.kind == "venda" and cost and item.selling_price:
-        data["cmv_percent"] = round(cost / item.selling_price * 100, 1)
+    if item.kind == "venda":
+        if cost and item.selling_price:
+            data["cmv_percent"] = round(cost / item.selling_price * 100, 1)
+        data["markup_percent"] = markup_percent(item.selling_price, cost)
+        data["ifood_price"] = ifood_price(item.selling_price, fee)
     return data
 
 
@@ -159,8 +166,8 @@ def list_items(kind: Optional[str] = None, db: Session = Depends(get_db)):
     q = db.query(Item)
     if kind:
         q = q.filter(Item.kind == kind)
-    memo = {}
-    return [serialize(i, memo) for i in q.order_by(Item.name).all()]
+    memo, fee = {}, get_setting(db, "ifood_fee_percent")
+    return [serialize(i, memo, fee) for i in q.order_by(Item.name).all()]
 
 
 @router.post("", status_code=201)

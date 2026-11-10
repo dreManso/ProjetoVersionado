@@ -287,3 +287,22 @@ def test_perda_no_preparo_custo_e_baixa_pelo_bruto():
     # mudar a perda padrão do item atualiza as fichas que usam o padrão
     client.put(f"/api/items/{cebola['id']}", json={"name": "Cebola", "kind": "compra", "unit": "kg", "loss_percent": 0})
     assert get(molho["id"])["recipe"][0]["gross_quantity"] == pytest.approx(0.45)
+
+
+def test_lucro_sobre_custo_preco_ifood_e_canal_de_venda():
+    mac = item(name="Porção", kind="compra", unit="un", avg_cost=5.32)
+    prato = item(name="Ao sugo", kind="venda", selling_price=15.96,
+                 recipe=[{"component_id": mac["id"], "quantity": 1}])
+    assert prato["markup_percent"] == pytest.approx(200.0)        # 5,32 × 3 = 15,96
+    assert prato["ifood_price"] == pytest.approx(22.80)            # 15,96 ÷ 0,70
+    assert client.get("/api/settings").json() == {"ifood_fee_percent": 30.0}
+    assert client.put("/api/settings", json={"ifood_fee_percent": 25}).json()["ifood_fee_percent"] == 25
+    assert get(prato["id"])["ifood_price"] == pytest.approx(21.28)  # 15,96 ÷ 0,75
+    detalhe = client.get(f"/api/items/{prato['id']}/cost").json()
+    assert detalhe["markup_percent"] == pytest.approx(200.0)
+    assert detalhe["suggested_prices"]["Lucro 100%"] == pytest.approx(10.64)
+    # venda no iFood usa o preço iFood
+    r = client.post("/api/sales", json={"channel": "ifood", "lines": [{"item_id": prato["id"], "quantity": 2}]})
+    assert r.json()["total"] == pytest.approx(42.56)
+    assert client.get("/api/sales").json()[0]["channel"] == "ifood"
+    assert client.put("/api/settings", json={"ifood_fee_percent": 95}).status_code == 422

@@ -20,7 +20,7 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from .models import Item, Movement
+from .models import Item, Movement, Setting
 
 WINDOW_DAYS = 28
 WORK_DAYS_PER_WEEK = 6
@@ -75,6 +75,33 @@ def from_stock_units(quantity: float, to_unit, item) -> float:
         if item.unit == "un" and item.portion_size and item.portion_unit:
             return convert_unit(quantity * item.portion_size, item.portion_unit, to_unit)
         raise
+
+
+# ── configurações e preços ────────────────────────────────────────────────────
+
+DEFAULT_SETTINGS = {"ifood_fee_percent": 30.0}
+
+
+def get_setting(db: Session, key: str) -> float:
+    row = db.get(Setting, key)
+    try:
+        return float(row.value) if row else DEFAULT_SETTINGS[key]
+    except ValueError:
+        return DEFAULT_SETTINGS[key]
+
+
+def ifood_price(direct_price, fee_percent: float):
+    """Preço no iFood para receber o mesmo que na venda direta: direta ÷ (1 − taxa)."""
+    if not direct_price:
+        return None
+    return round(direct_price / (1 - fee_percent / 100), 2)
+
+
+def markup_percent(price, cost):
+    """Lucro sobre o custo: (preço ÷ custo − 1) × 100."""
+    if not price or not cost:
+        return None
+    return round((price / cost - 1) * 100, 1)
 
 
 # ── datas e movimentos ────────────────────────────────────────────────────────
@@ -175,9 +202,9 @@ def cost_breakdown(item: Item) -> dict:
         })
     suggested = {}
     if item.kind == "venda" and cost:
-        # CMV = custo ÷ preço. Restaurantes costumam mirar 25–35%.
-        for cmv in (25, 30, 35, 40):
-            suggested[f"CMV {cmv}%"] = round(cost / (cmv / 100), 2)
+        # Lucro sobre o custo (markup): preço = custo × (1 + lucro)
+        for m in (100, 150, 200, 250):
+            suggested[f"Lucro {m}%"] = round(cost * (1 + m / 100), 2)
     return {
         "id": item.id,
         "name": item.name,
@@ -190,6 +217,7 @@ def cost_breakdown(item: Item) -> dict:
         "selling_price": item.selling_price,
         "cmv_percent": round(cost / item.selling_price * 100, 1)
         if (item.kind == "venda" and cost and item.selling_price) else None,
+        "markup_percent": markup_percent(item.selling_price, cost) if item.kind == "venda" else None,
         "lines": lines,
         "issues": issues,
         "suggested_prices": suggested,

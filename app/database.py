@@ -28,6 +28,7 @@ def init_db():
         ("items", "portion_unit", "VARCHAR(5)"),
         ("items", "loss_percent", "FLOAT NOT NULL DEFAULT 0"),   # 2.5.0: perda no preparo
         ("recipe_lines", "loss_percent", "FLOAT"),
+        ("sales", "channel", "VARCHAR(10) NOT NULL DEFAULT 'direta'"),   # 2.6.0: venda direta ou iFood
     ]
     with engine.begin() as conn:
         for table, column, sqltype in new_columns:

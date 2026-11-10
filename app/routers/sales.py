@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Item, Movement, Sale
 from ..schemas import SalesIn
-from ..services import add_movement, current_cost, to_datetime
+from ..services import add_movement, current_cost, get_setting, ifood_price, to_datetime
 
 router = APIRouter()
 
@@ -22,9 +22,14 @@ def register_sales(data: SalesIn, db: Session = Depends(get_db)):
         dish = db.get(Item, line.item_id)
         if not dish or dish.kind != "venda":
             raise HTTPException(400, f"Item {line.item_id} não é um prato do cardápio")
-        price = line.unit_price if line.unit_price is not None else (dish.selling_price or 0.0)
+        if line.unit_price is not None:
+            price = line.unit_price
+        elif data.channel == "ifood":
+            price = ifood_price(dish.selling_price, get_setting(db, "ifood_fee_percent")) or 0.0
+        else:
+            price = dish.selling_price or 0.0
         sale = Sale(item_id=dish.id, quantity=line.quantity, unit_price=price,
-                    total=round(price * line.quantity, 2), date=when)
+                    total=round(price * line.quantity, 2), channel=data.channel, date=when)
         db.add(sale)
         db.flush()
         if not dish.recipe:
@@ -51,7 +56,7 @@ def list_sales(limit: int = 100, db: Session = Depends(get_db)):
     rows = db.query(Sale).order_by(Sale.date.desc(), Sale.id.desc()).limit(min(limit, 500)).all()
     return [
         {"id": s.id, "item_id": s.item_id, "item_name": s.item.name, "quantity": s.quantity,
-         "unit_price": s.unit_price, "total": s.total, "date": s.date}
+         "unit_price": s.unit_price, "total": s.total, "channel": s.channel or "direta", "date": s.date}
         for s in rows
     ]
 
