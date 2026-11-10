@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Item, Movement, RecipeLine
 from ..schemas import ItemIn
-from ..services import convert_unit, cost_breakdown, creates_cycle, unit_cost
+from ..services import (cost_breakdown, creates_cycle, from_stock_units, item_units,
+                        to_stock_units, unit_cost)
 
 router = APIRouter()
 
@@ -17,10 +18,21 @@ def display_line(line: RecipeLine) -> dict:
     comp_unit = line.component.unit
     unit = line.unit or comp_unit
     try:
-        qty = convert_unit(line.quantity, comp_unit, unit)
+        qty = from_stock_units(line.quantity, unit, line.component)
     except ValueError:
         unit, qty = comp_unit, line.quantity
     return {"display_quantity": round(qty, 6), "display_unit": unit}
+
+
+def display_yield(item: Item) -> dict:
+    """Rendimento na unidade em que foi digitado (ex.: 3 kg pronto em vez de 10 porções)."""
+    unit, qty = item.yield_unit or item.unit, item.yield_quantity
+    if qty is not None and unit != item.unit:
+        try:
+            qty = from_stock_units(qty, unit, item)
+        except ValueError:
+            unit, qty = item.unit, item.yield_quantity
+    return {"yield_display": None if qty is None else round(qty, 6), "yield_unit": unit}
 
 
 def serialize(item: Item, memo=None) -> dict:
@@ -35,6 +47,10 @@ def serialize(item: Item, memo=None) -> dict:
         "coverage_days": item.coverage_days,
         "avg_cost": item.avg_cost,
         "yield_quantity": item.yield_quantity,
+        **display_yield(item),
+        "portion_size": item.portion_size,
+        "portion_unit": item.portion_unit,
+        "units": item_units(item),
         "min_batch": item.min_batch,
         "pack_size": item.pack_size,
         "pack_label": item.pack_label,
@@ -88,7 +104,7 @@ def _apply(db: Session, item: Item, data: ItemIn):
         if item.id and (comp.id == item.id or creates_cycle(db, item.id, comp.id)):
             raise HTTPException(400, f"'{comp.name}' já usa este item: a ficha ficaria circular")
         try:
-            quantities.append(convert_unit(line.quantity, line.unit, comp.unit))
+            quantities.append(to_stock_units(line.quantity, line.unit, comp))
         except ValueError:
             raise HTTPException(400, f"'{comp.name}' é controlado em {comp.unit}: use uma unidade compatível")
 
@@ -97,7 +113,20 @@ def _apply(db: Session, item: Item, data: ItemIn):
     item.unit = "un" if data.kind == "venda" else data.unit
     item.min_stock = data.min_stock
     item.coverage_days = data.coverage_days
-    item.yield_quantity = data.yield_quantity if data.kind == "producao" else None
+    # porção com peso (só itens produzidos contados em "un")
+    if data.kind == "producao" and item.unit == "un" and data.portion_size and data.portion_unit in ("g", "kg", "mL", "L"):
+        item.portion_size, item.portion_unit = data.portion_size, data.portion_unit
+    else:
+        item.portion_size = item.portion_unit = None
+    # rendimento pode vir em porções ou em peso (kg/g); grava na unidade de estoque
+    item.yield_quantity, item.yield_unit = None, None
+    if data.kind == "producao" and data.yield_quantity:
+        try:
+            item.yield_quantity = to_stock_units(data.yield_quantity, data.yield_unit, item)
+        except ValueError:
+            raise HTTPException(400, "Para informar o rendimento em peso, preencha o peso de cada porção")
+        if data.yield_unit and data.yield_unit != item.unit:
+            item.yield_unit = data.yield_unit
     item.min_batch = data.min_batch if data.kind == "producao" else 0.0
     item.pack_size = data.pack_size if data.kind == "compra" else None
     item.pack_label = data.pack_label if data.kind == "compra" else None

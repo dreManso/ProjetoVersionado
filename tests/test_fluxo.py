@@ -235,3 +235,29 @@ def test_banco_antigo_sem_coluna_unit_e_migrado(tmp_path):
         database.engine.dispose(); database.engine = original
     cols = [r[1] for r in sqlite3.connect(db_file).execute("PRAGMA table_info(recipe_lines)")]
     assert "unit" in cols
+
+
+def test_porcao_com_peso_rendimento_em_kg():
+    macarrao = item(name="Macarrão", kind="compra", unit="kg", avg_cost=11.8)
+    porcao = item(name="Porção espaguete", kind="producao", unit="un",
+                  portion_size=300, portion_unit="g", yield_quantity=3, yield_unit="kg",
+                  recipe=[{"component_id": macarrao["id"], "quantity": 1500, "unit": "g"}])
+    assert porcao["yield_quantity"] == pytest.approx(10)          # 3 kg ÷ 300 g
+    assert (porcao["yield_display"], porcao["yield_unit"]) == (3, "kg")
+    assert porcao["unit_cost"] == pytest.approx(1.77)              # 17,70 ÷ 10
+    assert "g" in porcao["units"] and "un" in porcao["units"]
+    # prato usando 150 g da porção = meia porção
+    prato = item(name="Espaguete kids", kind="venda", selling_price=20,
+                 recipe=[{"component_id": porcao["id"], "quantity": 150, "unit": "g"}])
+    assert prato["recipe"][0]["quantity"] == pytest.approx(0.5)
+    assert (prato["recipe"][0]["display_quantity"], prato["recipe"][0]["display_unit"]) == (150, "g")
+    # produção pesada em kg: 1,5 kg cru rendeu 3,3 kg cozido = 11 porções
+    client.post("/api/stock/purchase", json={"item_id": macarrao["id"], "quantity": 5, "total_price": 59})
+    p = client.post("/api/production", json={"item_id": porcao["id"], "output_quantity": 3.3, "output_unit": "kg",
+                                             "inputs": [{"item_id": macarrao["id"], "quantity": 1.5}]}).json()
+    assert p["output_quantity"] == pytest.approx(11)
+    assert p["deviation_percent"] == pytest.approx(10.0)
+    # sem peso da porção, rendimento em kg é recusado
+    r = client.post("/api/items", json={"name": "Sem peso", "kind": "producao", "unit": "un",
+                                        "yield_quantity": 3, "yield_unit": "kg"})
+    assert r.status_code == 400

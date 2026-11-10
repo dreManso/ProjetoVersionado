@@ -2,4 +2,4 @@
 #   X.0.0  mudança grande (estrutura, dados)
 #   x.Y.0  função nova
 #   x.y.Z  correção ou ajuste pequeno
-__version__ = "2.3.1"
+__version__ = "2.4.0"

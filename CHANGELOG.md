@@ -2,6 +2,13 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.4.0 — 10/11/2026
+- Itens produzidos em porções podem ter o peso de cada porção (ex.: 300 g).
+- Rendimento da receita em porções ou em kg pronto: 3 kg de macarrão cozido = 10 porções de 300 g.
+- Custo mostrado por porção e por kg pronto.
+- Produção: "quanto rendeu" pode ser pesado em kg/g e o app converte em porções.
+- Ficha de prato pode usar a porção em gramas (ex.: 150 g = meia porção).
+
 ## 2.3.1 — 10/11/2026
 - Ficha técnica lembra a unidade digitada: 1500 g continua aparecendo como 1500 g ao reabrir.
 - Itens controlados em g ou mL mostram o preço por kg ou L (R$ 11,31/kg em vez de R$ 0,01/g).

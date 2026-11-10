@@ -34,7 +34,10 @@ class Item(Base):
     min_stock = Column(Float, nullable=False, default=0.0)        # estoque de segurança
     coverage_days = Column(Float, nullable=False, default=6.0)    # dias de trabalho a cobrir
     avg_cost = Column(Float, nullable=False, default=0.0)         # custo médio real por unidade
-    yield_quantity = Column(Float, nullable=True)                 # producao: rende por receita
+    yield_quantity = Column(Float, nullable=True)                 # producao: rende por receita (na unidade de estoque)
+    yield_unit = Column(String(5), nullable=True)                 # unidade em que o rendimento foi digitado (exibição)
+    portion_size = Column(Float, nullable=True)                   # producao em "un": peso/volume de cada porção
+    portion_unit = Column(String(5), nullable=True)               # g, kg, mL ou L
     min_batch = Column(Float, nullable=False, default=0.0)        # producao: lote mínimo
     pack_size = Column(Float, nullable=True)                      # compra: tamanho da embalagem
     pack_label = Column(String(30), nullable=True)                # compra: "pacote", "caixa"...

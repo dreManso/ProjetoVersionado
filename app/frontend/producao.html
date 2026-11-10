@@ -42,7 +42,7 @@
           <table class="table table-sm"><tbody id="p-inputs"></tbody></table>
           <div class="mb-3">
             <label class="form-label fw-semibold">Quanto rendeu de fato *</label>
-            <div class="input-group"><input class="form-control" id="p-out" inputmode="decimal"><span class="input-group-text" id="p-unit"></span></div>
+            <div class="input-group"><input class="form-control" id="p-out" inputmode="decimal"><select class="form-select" id="p-unit" style="max-width:90px"></select></div>
             <div class="help" id="p-expected"></div>
           </div>
           <div class="mb-3">
@@ -101,17 +101,21 @@ function pick(id, batches) { $('p-item').value = id; $('p-batches').value = num(
 
 function select() {
   current = byId[+$('p-item').value] || null;
-  if (!current) { $('p-inputs').innerHTML = ''; $('p-unit').textContent = ''; $('p-expected').textContent = ''; return; }
+  if (!current) { $('p-inputs').innerHTML = ''; $('p-unit').innerHTML = ''; $('p-expected').textContent = ''; return; }
   if (!current.recipe.length) toast('Este item não tem ficha técnica. Cadastre em "Itens e fichas".', 'warn');
   const b = parseNum($('p-batches').value) || 1;
   inputs = current.recipe.map(r => ({ item_id: r.component_id, quantity: +(r.quantity * b).toFixed(3) }));
-  $('p-unit').textContent = current.unit;
-  $('p-out').value = current.yield_quantity ? +(current.yield_quantity * b).toFixed(3) : '';
+  // rendimento na unidade em que a ficha foi cadastrada (ex.: kg pronto); dá para trocar por porções
+  const yu = current.yield_unit || current.unit;
+  $('p-unit').innerHTML = itemUnits(current).map(u => `<option ${u === yu ? 'selected' : ''}>${u}</option>`).join('');
+  $('p-out').value = current.yield_quantity ? +((current.yield_display ?? current.yield_quantity) * b).toFixed(3) : '';
   renderInputs();
 }
 $('p-item').onchange = select;
 $('p-batches').oninput = select;
 $('p-out').oninput = renderExpected;
+$('p-unit').onchange = renderExpected;
+const outInStock = () => current ? toStock(parseNum($('p-out').value), $('p-unit').value, current) : null;
 
 function renderInputs() {
   $('p-inputs').innerHTML = inputs.map((l, idx) => {
@@ -127,8 +131,9 @@ function renderExpected() {
   const main = current.recipe[0], used = inputs[0]?.quantity;
   if (!used) return;
   const exp = current.yield_quantity * used / main.quantity;
-  const out = parseNum($('p-out').value);
-  let txt = `Pela ficha, ${qty(used, byId[main.component_id].unit)} de ${byId[main.component_id].name} rendem ${qty(exp, current.unit)}.`;
+  const out = outInStock();
+  let txt = `Pela ficha, ${qtyF(used, byId[main.component_id].unit)} de ${byId[main.component_id].name} rendem ${qty(exp, current.unit)}.`;
+  if (out && $('p-unit').value !== current.unit) txt += ` Você informou ${qty(out, current.unit)}.`;
   if (out) { const d = (out / exp - 1) * 100; txt += ` Desvio: ${d > 0 ? '+' : ''}${pct(d)}`; }
   $('p-expected').textContent = txt;
 }
@@ -137,10 +142,11 @@ async function save() {
   if (!current) return toast('Escolha o item produzido', 'error');
   const out = parseNum($('p-out').value);
   if (!(out > 0)) return toast('Informe quanto rendeu', 'error');
+  const outUnit = $('p-unit').value;
   const ins = inputs.filter(l => l.quantity > 0);
   if (!ins.length) return toast('Informe o que entrou', 'error');
   await safe(async () => {
-    const p = await api.produce({ item_id: current.id, output_quantity: out, inputs: ins, day: $('p-day').value || null, notes: $('p-notes').value.trim() || null });
+    const p = await api.produce({ item_id: current.id, output_quantity: out, output_unit: outUnit, inputs: ins, day: $('p-day').value || null, notes: $('p-notes').value.trim() || null });
     toast(`Produção registrada: ${qty(p.output_quantity, p.unit)} de ${p.item_name} a ${unitPrice(p.unit_cost, p.unit)}`);
     if (p.deviation_percent != null && p.deviation_percent <= -5) toast(`Rendimento ${pct(p.deviation_percent)} abaixo da ficha. Vale conferir.`, 'warn');
     $('p-item').value = ''; $('p-notes').value = ''; $('p-batches').value = 1; select();

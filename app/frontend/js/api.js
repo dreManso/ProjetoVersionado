@@ -51,6 +51,19 @@ const convertQty = (q, from, to) => q == null ? null : +(q * UNIT_FACTOR[from] /
 // Unidade mais fácil de ler: 0,3 kg → g; 0,15 L → mL
 const friendlyUnit = (q, unit) => (unit === 'kg' && q > 0 && q < 1) ? 'g' : (unit === 'L' && q > 0 && q < 1) ? 'mL' : unit;
 const qtyF = (q, unit) => { if (q == null) return '—'; const u = friendlyUnit(Math.abs(q), unit); return qty(convertQty(q, unit, u), u); };
+// Unidades aceitas por um item: as do estoque + (porção com peso) as do peso: un, g, kg
+const itemUnits = it => {
+    const u = [...(UNIT_OPTIONS[it.unit] || [it.unit])];
+    return (it.unit === 'un' && it.portion_size && it.portion_unit) ? [...u, ...UNIT_OPTIONS[it.portion_unit]] : u;
+};
+// quantidade digitada → unidade de estoque do item (300 g de porção de 300 g → 1 un)
+function toStock(q, from, it) {
+    if (q == null || !from || from === it.unit) return q;
+    if ((UNIT_OPTIONS[it.unit] || []).includes(from)) return convertQty(q, from, it.unit);
+    return +(convertQty(q, from, it.portion_unit) / it.portion_size).toFixed(6);
+}
+const unitSelectFor = (it, selected, attrs = '') =>
+    `<select class="form-select form-select-sm" style="width:auto" ${attrs}>${itemUnits(it).map(u => `<option ${u === selected ? 'selected' : ''}>${u}</option>`).join('')}</select>`;
 // Preço por unidade legível: itens em g/mL mostram o preço por kg/L (R$ 0,0113/g → R$ 11,31/kg)
 const unitPrice = (v, unit) => v == null ? '—'
     : unit === 'g' ? `${brl(v * 1000)}/kg` : unit === 'mL' ? `${brl(v * 1000)}/L` : `${brl(v)}/${unit}`;

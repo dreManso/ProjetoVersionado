@@ -44,6 +44,39 @@ def convert_unit(quantity: float, from_unit, to_unit: str) -> float:
     return quantity * a[1] / b[1]
 
 
+def item_units(item) -> list:
+    """Unidades aceitas para um item: as da unidade de estoque e, se for porção com peso, as do peso."""
+    fam = {"kg": ["kg", "g"], "g": ["g", "kg"], "L": ["L", "mL"], "mL": ["mL", "L"], "un": ["un"]}
+    units = list(fam.get(item.unit, [item.unit]))
+    if item.unit == "un" and item.portion_size and item.portion_unit:
+        units += fam.get(item.portion_unit, [])
+    return units
+
+
+def to_stock_units(quantity: float, from_unit, item) -> float:
+    """Quantidade digitada (ex.: 300 g de uma porção de 300 g) → unidade de estoque do item (1 un)."""
+    if not from_unit or from_unit == item.unit:
+        return quantity
+    try:
+        return convert_unit(quantity, from_unit, item.unit)
+    except ValueError:
+        if item.unit == "un" and item.portion_size and item.portion_unit:
+            return convert_unit(quantity, from_unit, item.portion_unit) / item.portion_size
+        raise
+
+
+def from_stock_units(quantity: float, to_unit, item) -> float:
+    """Inverso de to_stock_units (para exibir na unidade digitada)."""
+    if not to_unit or to_unit == item.unit:
+        return quantity
+    try:
+        return convert_unit(quantity, item.unit, to_unit)
+    except ValueError:
+        if item.unit == "un" and item.portion_size and item.portion_unit:
+            return convert_unit(quantity * item.portion_size, item.portion_unit, to_unit)
+        raise
+
+
 # ── datas e movimentos ────────────────────────────────────────────────────────
 
 def to_datetime(day):
@@ -125,7 +158,7 @@ def cost_breakdown(item: Item) -> dict:
         c, _ = unit_cost(line.component, memo)
         shown_unit = line.unit or line.component.unit
         try:
-            shown_qty = convert_unit(line.quantity, line.component.unit, shown_unit)
+            shown_qty = from_stock_units(line.quantity, shown_unit, line.component)
         except ValueError:
             shown_unit, shown_qty = line.component.unit, line.quantity
         lines.append({

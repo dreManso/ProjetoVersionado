@@ -92,12 +92,21 @@
               </div>
             </div>
 
+            <div class="row g-2 mb-2 show-producao show-portion">
+              <div class="col-6">
+                <label class="form-label fw-semibold">Peso de cada porção</label>
+                <div class="input-group"><input class="form-control" id="f-portion" inputmode="decimal" placeholder="ex: 300">
+                  <select class="form-select" id="f-portionunit" style="max-width:80px">
+                    <option>g</option><option>kg</option><option>mL</option><option>L</option></select></div>
+                <div class="help">Opcional. Permite informar o rendimento em kg</div>
+              </div>
+            </div>
             <div class="row g-2 mb-3 show-producao">
               <div class="col-6">
                 <label class="form-label fw-semibold">Rendimento de 1 receita</label>
                 <div class="input-group"><input class="form-control" id="f-yield" inputmode="decimal">
-                  <span class="input-group-text u"></span></div>
-                <div class="help">O que a receita realmente produz depois de pronta (pesado/contado)</div>
+                  <select class="form-select" id="f-yieldunit" style="max-width:80px"></select></div>
+                <div class="help" id="f-yieldcalc">O que a receita realmente produz depois de pronta (pesado/contado)</div>
               </div>
               <div class="col-6">
                 <label class="form-label">Lote mínimo</label>
@@ -241,8 +250,48 @@ function updateUnits() {
   const pu = $('f-packunit').value;
   $('f-packunit').innerHTML = (UNIT_OPTIONS[u] || [u]).map(x => `<option ${x === pu ? 'selected' : ''}>${x}</option>`).join('');
   renderCostBasis();
+  updateYieldUnits();
   renderLines();
 }
+
+// ── porção com peso e rendimento em porções ou em kg ──
+let pendingYieldUnit = null;
+function formItem() {  // o item como está no formulário, para converter unidades
+  const unit = $('f-kind').value === 'venda' ? 'un' : $('f-unit').value;
+  const ps = parseNum($('f-portion').value);
+  return { unit, portion_size: unit === 'un' && ps > 0 ? ps : null, portion_unit: $('f-portionunit').value };
+}
+function updateYieldUnits() {
+  const it = formItem(), isProd = $('f-kind').value === 'producao';
+  document.querySelectorAll('.show-portion').forEach(e => e.classList.toggle('d-none', !(isProd && it.unit === 'un')));
+  const want = pendingYieldUnit || $('f-yieldunit').value;
+  pendingYieldUnit = null;
+  const opts = itemUnits(it);
+  $('f-yieldunit').innerHTML = opts.map(u => `<option ${u === want ? 'selected' : ''}>${u}</option>`).join('');
+  renderYieldCalc();
+}
+function yieldInStock() {
+  const it = formItem(), y = parseNum($('f-yield').value), yu = $('f-yieldunit').value;
+  if (!(y > 0)) return null;
+  return itemUnits(it).includes(yu) ? toStock(y, yu, it) : null;
+}
+function renderYieldCalc() {
+  const it = formItem(), y = parseNum($('f-yield').value), yu = $('f-yieldunit').value, ys = yieldInStock();
+  let txt = 'O que a receita realmente produz depois de pronta (pesado/contado)';
+  if (ys && it.unit === 'un' && it.portion_size) {
+    const portion = `${num(it.portion_size)} ${it.portion_unit}`;
+    txt = yu === 'un'
+      ? `= ${qtyF(convertQty(ys * it.portion_size, it.portion_unit, ['g', 'kg'].includes(it.portion_unit) ? 'kg' : 'L'), ['g', 'kg'].includes(it.portion_unit) ? 'kg' : 'L')} prontos (porções de ${portion})`
+      : `= ${num(ys, 2)} porções de ${portion}`;
+  } else if (ys && yu !== it.unit) {
+    txt = `= ${qty(ys, it.unit)}`;
+  }
+  $('f-yieldcalc').textContent = txt;
+  renderPreview();
+}
+$('f-portion').addEventListener('input', updateYieldUnits);
+$('f-portionunit').addEventListener('change', updateYieldUnits);
+$('f-yieldunit').addEventListener('change', renderYieldCalc);
 
 // Preço: "por embalagem" ou "por unidade de estoque"; o custo por kg/L/un é calculado
 let costDirty = false, basisTouched = false;
@@ -276,12 +325,14 @@ $('f-unit').onchange = updateUnits;
 $('f-packunit').addEventListener('change', renderCostBasis);
 $('f-costbasis').onchange = () => { costDirty = true; basisTouched = true; renderCostCalc(); };
 $('f-cost').oninput = () => { costDirty = true; renderCostCalc(); };
-['f-yield', 'f-price'].forEach(id => $(id).oninput = renderPreview);
+$('f-yield').oninput = renderYieldCalc;
+$('f-price').oninput = renderPreview;
 
 function openCreate() {
   editing = null; lines = []; costDirty = false; basisTouched = false;
   $('mTitle').textContent = 'Novo item';
-  ['f-name', 'f-cost', 'f-pack', 'f-packlabel', 'f-yield', 'f-price', 'f-notes'].forEach(id => setField(id, ''));
+  ['f-name', 'f-cost', 'f-pack', 'f-packlabel', 'f-yield', 'f-price', 'f-notes', 'f-portion'].forEach(id => setField(id, ''));
+  $('f-portionunit').value = 'g'; $('f-yieldunit').innerHTML = '';
   setField('f-batch', 0); setField('f-cov', 6); setField('f-min', 0);
   $('f-kind').value = kind; $('f-unit').value = kind === 'producao' ? 'un' : 'kg';
   $('f-packunit').innerHTML = ''; $('f-costbasis').innerHTML = '';
@@ -302,7 +353,9 @@ function openEdit(id) {
   setField('f-packlabel', i.pack_label);
   $('f-costbasis').innerHTML = `<option value="${i.pack_size ? 'pack' : 'unit'}"></option>`;
   setField('f-cost', i.avg_cost ? +(i.pack_size ? i.avg_cost * i.pack_size : i.avg_cost).toFixed(2) : '');
-  setField('f-yield', i.yield_quantity); setField('f-batch', i.min_batch); setField('f-cov', i.coverage_days);
+  setField('f-portion', i.portion_size); $('f-portionunit').value = i.portion_unit || 'g';
+  setField('f-yield', i.yield_display ?? i.yield_quantity); pendingYieldUnit = i.yield_unit || i.unit;
+  setField('f-batch', i.min_batch); setField('f-cov', i.coverage_days);
   setField('f-min', i.min_stock); setField('f-price', i.selling_price); setField('f-notes', i.notes);
   $('f-active').checked = i.active;
   // reabre na unidade em que foi digitada (1500 g continua 1500 g)
@@ -322,7 +375,7 @@ function componentOptions(selected) {
 function addLine() { lines.push({ component_id: null, quantity: null, unit: null }); renderLines(); }
 
 // quantidade da linha convertida para a unidade de estoque do componente
-function lineQty(l, c) { return c && l.quantity ? convertQty(l.quantity, l.unit || c.unit, c.unit) : null; }
+function lineQty(l, c) { return c && l.quantity ? toStock(l.quantity, l.unit || c.unit, c) : null; }
 
 // mais de 100 kg/L numa linha quase sempre é grama digitada como kg
 function lineWarn(l, c) {
@@ -352,11 +405,11 @@ function pickComponent(idx, id) {
 function renderLines() {
   $('recipe-body').innerHTML = lines.length ? lines.map((l, idx) => {
     const c = all.find(i => i.id === l.component_id);
-    if (c && !(UNIT_OPTIONS[c.unit] || [c.unit]).includes(l.unit)) l.unit = c.unit;
+    if (c && !itemUnits(c).includes(l.unit)) l.unit = c.unit;
     return `<tr>
       <td><select class="form-select form-select-sm" onchange="pickComponent(${idx}, +this.value)">${componentOptions(l.component_id)}</select></td>
       <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${l.quantity ?? ''}" oninput="lines[${idx}].quantity=parseNum(this.value);updateLine(${idx})"></td>
-      <td>${c ? unitSelect(c.unit, l.unit, `onchange="lines[${idx}].unit=this.value;updateLine(${idx})"`) : ''}
+      <td>${c ? unitSelectFor(c, l.unit, `onchange="lines[${idx}].unit=this.value;updateLine(${idx})"`) : ''}
         <div class="help text-danger" id="lw-${idx}">${lineWarn(l, c)}</div></td>
       <td class="num" id="lc-${idx}">${lineCostText(l, c)}</td>
       <td><button class="btn btn-sm btn-outline-danger py-0" onclick="lines.splice(${idx},1);renderLines()"><i class="bi bi-x"></i></button></td></tr>`;
@@ -374,8 +427,14 @@ function renderPreview() {
   }
   let html = `Custo dos componentes: <strong>${brl(total)}</strong>`;
   if (k === 'producao') {
-    const y = parseNum($('f-yield').value), u = $('f-unit').value;
-    html += y ? ` → <strong>${unitPrice(total / y, u).replace('/', '</strong> por ')}` : ' <span class="text-warning">(informe o rendimento)</span>';
+    const y = yieldInStock(), it = formItem(), u = it.unit;
+    if (!y) html += ' <span class="text-warning">(informe o rendimento)</span>';
+    else if (u === 'un' && it.portion_size) {
+      // custo por porção e por kg/L pronto
+      const big = ['g', 'kg'].includes(it.portion_unit) ? 'kg' : 'L';
+      const perBig = total / y / convertQty(it.portion_size, it.portion_unit, big);
+      html += ` → <strong>${brl(total / y)}</strong> por porção · <strong>${brl(perBig)}</strong> por ${big} pronto`;
+    } else html += ` → <strong>${unitPrice(total / y, u).replace('/', '</strong> por ')}`;
   } else if (k === 'venda') {
     const p = parseNum($('f-price').value);
     if (p) { const cmv = total / p * 100; html += ` · CMV <strong class="${cmv > 40 ? 'text-danger' : 'text-success'}">${pct(cmv)}</strong>`; }
@@ -389,7 +448,9 @@ async function save() {
   const data = {
     name: $('f-name').value.trim(), kind: k, unit: k === 'venda' ? 'un' : $('f-unit').value,
     min_stock: parseNum($('f-min').value) || 0, coverage_days: parseNum($('f-cov').value) ?? 6,
-    yield_quantity: parseNum($('f-yield').value), min_batch: parseNum($('f-batch').value) || 0,
+    yield_quantity: parseNum($('f-yield').value), yield_unit: $('f-yieldunit').value || null,
+    portion_size: formItem().portion_size, portion_unit: formItem().portion_size ? $('f-portionunit').value : null,
+    min_batch: parseNum($('f-batch').value) || 0,
     pack_size: packSizeInStockUnit(), pack_label: $('f-packlabel').value.trim() || null,
     selling_price: parseNum($('f-price').value), notes: $('f-notes').value.trim() || null,
     active: $('f-active').checked,
@@ -418,7 +479,7 @@ async function viewCost(id) {
   await safe(async () => {
     const c = await api.itemCost(id);
     $('cTitle').textContent = 'Custo: ' + c.name;
-    const per = c.kind === 'producao' ? `<tr><td colspan="4" class="text-end">÷ rendimento ${qty(c.yield_quantity, c.unit)} = custo</td><td class="num">${unitPrice(c.unit_cost, c.unit)}</td></tr>` : '';
+    const per = c.kind === 'producao' ? `<tr><td colspan="4" class="text-end">÷ rendimento ${qty(c.yield_quantity, c.unit)}${c.portion_size ? ` (porções de ${num(c.portion_size)} ${c.portion_unit})` : ''} = custo</td><td class="num">${unitPrice(c.unit_cost, c.unit)}</td></tr>` : '';
     $('cBody').innerHTML = `
       <table class="table table-sm">
         <thead class="table-dark"><tr><th>Componente</th><th class="num">Qtd</th><th class="num">Custo unit.</th><th></th><th class="num">Total</th></tr></thead>

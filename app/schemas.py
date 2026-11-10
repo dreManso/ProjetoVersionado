@@ -21,6 +21,9 @@ class ItemIn(BaseModel):
     coverage_days: float = Field(6.0, ge=0)
     avg_cost: Optional[float] = Field(None, ge=0)  # só aplicado se enviado
     yield_quantity: Optional[float] = Field(None, gt=0)
+    yield_unit: Optional[Unit] = None          # unidade em que o rendimento foi digitado (ex.: kg pronto)
+    portion_size: Optional[float] = Field(None, gt=0)   # peso/volume de cada porção (itens em "un")
+    portion_unit: Optional[Unit] = None
     min_batch: float = Field(0.0, ge=0)
     pack_size: Optional[float] = Field(None, gt=0)
     pack_label: Optional[str] = None
@@ -53,6 +56,7 @@ class ProductionInputIn(BaseModel):
 class ProductionIn(BaseModel):
     item_id: int
     output_quantity: float = Field(gt=0)
+    output_unit: Optional[Unit] = None   # ex.: rendeu 3 kg de uma porção de 300 g → 10 un
     inputs: List[ProductionInputIn] = Field(min_length=1)
     day: Optional[date] = None
     notes: Optional[str] = None
