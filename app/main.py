@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
 from .routers import items, production, reports, sales, settings, stock
+from .netinfo import lan_url
 from .version import __version__
 
 init_db()
@@ -29,7 +30,7 @@ app.include_router(settings.router, prefix="/api/settings", tags=["Configuraçõ
 
 @app.get("/api/version", tags=["Sistema"])
 def version():
-    return {"version": __version__}
+    return {"version": __version__, "lan_url": lan_url()}
 
 # Frontend (montado por último para não capturar as rotas /api)
 FRONTEND_DIR = Path(__file__).parent / "frontend"

@@ -2,6 +2,9 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.7.1 — 10/11/2026
+- Abrir no celular: o Painel mostra o endereço e um QR code para abrir o app no celular (mesmo Wi-Fi). A janela preta também mostra o endereço ao iniciar.
+
 ## 2.7.0 — 10/11/2026
 - Calculadora integrada em todos os campos de número:
   - dá para digitar a conta direto no campo (ex.: 4700+2000, 3*500, 21,60/24, 10%); o resultado aparece embaixo e entra no campo ao sair dele ou apertar Enter;

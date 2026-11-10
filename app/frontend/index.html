@@ -28,10 +28,23 @@
       </div>
     </div>
   </div>
+
+  <div class="card shadow-sm mt-4 d-none" id="phone-card">
+    <div class="card-body d-flex flex-wrap align-items-center gap-4">
+      <div id="phone-qr"></div>
+      <div>
+        <div class="fw-semibold mb-1"><i class="bi bi-phone"></i> Abrir no celular</div>
+        <div class="help mb-2">Com o celular no <b>mesmo Wi-Fi</b> deste computador, aponte a câmera para o código ou digite no navegador:</div>
+        <div class="fs-5 fw-bold text-primary" id="phone-url"></div>
+        <div class="help mt-2">O computador precisa estar ligado com a janela preta do programa aberta.</div>
+      </div>
+    </div>
+  </div>
 </main>
 <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
 <script src="/vendor/bootstrap.bundle.min.js"></script>
 <script src="/js/api.js"></script>
+<script src="/vendor/qrcode.js"></script>
 <script>
 renderNav('index');
 const $ = id => document.getElementById(id);
@@ -60,6 +73,15 @@ async function load() {
 }
 
 safe(load);
+
+// endereço para o celular (só faz sentido mostrar no computador)
+request('GET', '/version').then(v => {
+  if (!v.lan_url || location.hostname === v.lan_url.split('//')[1].split(':')[0]) return;
+  $('phone-url').textContent = v.lan_url;
+  const qr = qrcode(0, 'M'); qr.addData(v.lan_url); qr.make();
+  $('phone-qr').innerHTML = qr.createSvgTag(5, 2);
+  $('phone-card').classList.remove('d-none');
+}).catch(() => {});
 </script>
 </body>
 </html>
