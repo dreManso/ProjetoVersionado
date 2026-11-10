@@ -310,18 +310,41 @@ def test_lucro_sobre_custo_preco_ifood_e_canal_de_venda():
     assert client.put("/api/settings", json={"ifood_fee_percent": 95}).status_code == 422
 
 
-def test_reposicao_nao_usa_perda_e_media_com_pouco_historico():
-    feijao = item(name="Feijão", kind="compra", unit="kg", avg_cost=9.9, loss_percent=10, coverage_days=15)
-    porcao = item(name="Porção feijão", kind="producao", unit="un", yield_quantity=10,
+def test_reposicao_vem_das_vendas_e_nao_da_producao():
+    feijao = item(name="Feijão", kind="compra", unit="kg", avg_cost=9.9, loss_percent=10,
+                  coverage_days=15, pack_size=1, pack_label="pacote")
+    porcao = item(name="Porção feijão", kind="producao", unit="un", yield_quantity=10, coverage_days=3,
                   recipe=[{"component_id": feijao["id"], "quantity": 1}])
+    prato = item(name="Prato feito", kind="venda", selling_price=25,
+                 recipe=[{"component_id": porcao["id"], "quantity": 1}])
     client.post("/api/stock/purchase", json={"item_id": feijao["id"], "quantity": 1, "total_price": 9.9})
-    # produção de teste hoje: gastou 1 kg (a perda não aumenta a baixa)
+    # produção de teste: gastou 1 kg, mas sem vendas não há demanda → nada a comprar
     client.post("/api/production", json={"item_id": porcao["id"], "output_quantity": 10,
                                          "inputs": [{"item_id": feijao["id"], "quantity": 1}]})
-    assert get(feijao["id"])["stock"] == pytest.approx(0)
     rep = client.get("/api/reports/replenishment").json()
+    assert rep["has_sales"] is False and rep["buy"] == [] and rep["produce"] == []
+    # vendeu 6 pratos hoje → média 6 ÷ 6 dias = 1 prato/dia = 1 porção/dia = 0,1 kg de feijão/dia
+    client.post("/api/sales", json={"lines": [{"item_id": prato["id"], "quantity": 6}]})
+    rep = client.get("/api/reports/replenishment").json()
+    assert rep["has_sales"] is True and rep["history_days"] < 1
+    # porções: estoque 4, alvo 1/dia × 3 dias = 3 → não precisa produzir
+    assert all(r["name"] != "Porção feijão" for r in rep["produce"])
     f = next(r for r in rep["buy"] if r["name"] == "Feijão")
-    # 1 dia de histórico: média = 1 kg ÷ 6 dias (não 1 kg/dia) → 15 dias = 2,5 kg
-    assert f["daily"] == pytest.approx(1 / 6, rel=1e-2)
-    assert f["target"] == pytest.approx(2.5, rel=1e-2)
-    assert rep["history_days"] < 1 and rep["min_work_days"] == 6
+    assert f["daily"] == pytest.approx(0.1)                 # a perda não aumenta a quantidade
+    assert f["target"] == pytest.approx(1.5)                # 0,1 kg × 15 dias
+    assert f["chain_stock"] == pytest.approx(0.4)           # 4 porções prontas = 0,4 kg de feijão
+    assert f["suggested"] == pytest.approx(2)               # falta 1,1 kg → 2 pacotes de 1 kg
+
+
+def test_reposicao_porcoes_prontas_evitam_compra():
+    coxao = item(name="Coxão", kind="compra", unit="kg", coverage_days=6)
+    bife = item(name="Bife", kind="producao", unit="un", yield_quantity=6, coverage_days=6,
+                recipe=[{"component_id": coxao["id"], "quantity": 1}])
+    prato = item(name="Milanesa", kind="venda", recipe=[{"component_id": bife["id"], "quantity": 1}])
+    client.post("/api/production", json={"item_id": bife["id"], "output_quantity": 60,
+                                         "inputs": [{"item_id": coxao["id"], "quantity": 10}]})
+    client.post("/api/stock/adjust", json={"item_id": coxao["id"], "counted_quantity": 0})
+    client.post("/api/sales", json={"lines": [{"item_id": prato["id"], "quantity": 6}]})
+    rep = client.get("/api/reports/replenishment").json()
+    # 1 bife/dia; 54 bifes prontos cobrem muito mais que 6 dias → nada a produzir nem comprar
+    assert rep["produce"] == [] and rep["buy"] == []

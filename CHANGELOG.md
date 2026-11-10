@@ -2,6 +2,12 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.8.0 — 10/11/2026
+- Reposição calculada pelas VENDAS: a média de pratos vendidos por dia desce pelas fichas (prato → porções → insumos) e forma a lista de produção e a de compras.
+- Produções, compras e contagens não entram mais na média (uma produção de teste não infla as compras).
+- O que já está pronto em porções conta como estoque do insumo ("na cadeia"): feijão porcionado conta como feijão.
+- Aviso quando não há vendas lançadas.
+
 ## 2.7.2 — 10/11/2026
 - A perda (preparo ou defeito) agora aumenta só o CUSTO. A quantidade que sai do estoque, a da produção e a da lista de compras são as da ficha.
 - Reposição: com menos de uma semana de lançamentos, a média de consumo é dividida por pelo menos 6 dias (antes, 1 dia de teste virava média de 1 dia e inflava as compras). A tela avisa quantos dias de histórico existem.

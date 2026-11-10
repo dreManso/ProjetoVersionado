@@ -20,12 +20,11 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from .models import Item, Movement, Setting
+from .models import Item, Movement, Sale, Setting
 
 WINDOW_DAYS = 28
 WORK_DAYS_PER_WEEK = 6
 MIN_WORK_DAYS = 6   # com menos de 1 semana de histórico, divide por pelo menos 6 dias (evita média inflada)
-CONSUMPTION_TYPES = ("venda", "producao_consumo")
 EPS = 1e-9
 
 
@@ -249,34 +248,31 @@ def creates_cycle(db: Session, parent_id: int, component_id: int) -> bool:
     return False
 
 
-# ── consumo médio e reposição ─────────────────────────────────────────────────
+# ── reposição a partir das vendas ─────────────────────────────────────────────
 
-def history_days(db: Session, now=None) -> float:
-    """Quantos dias de lançamentos existem dentro da janela de 4 semanas."""
+def sales_history_days(db: Session, now=None) -> float:
+    """Quantos dias de vendas lançadas existem dentro da janela de 4 semanas."""
     now = now or datetime.now()
-    first = db.query(func.min(Movement.date)).scalar()
+    first = db.query(func.min(Sale.date)).scalar()
     if first is None:
         return 0.0
     span_start = max(now - timedelta(days=WINDOW_DAYS), first)
     return max(0.0, (now - span_start).total_seconds() / 86400)
 
 
-def daily_consumption(db: Session, now=None) -> dict:
-    """Consumo médio por dia de trabalho, por item, nas últimas 4 semanas
+def daily_sales(db: Session, now=None) -> dict:
+    """Pratos vendidos por dia de trabalho, nas últimas 4 semanas
     (com pouco histórico, divide por pelo menos MIN_WORK_DAYS)."""
     now = now or datetime.now()
     start = now - timedelta(days=WINDOW_DAYS)
-    days = history_days(db, now)
-    if not days and db.query(Movement.id).first() is None:
-        return {}
-    work_days = max(MIN_WORK_DAYS, days * WORK_DAYS_PER_WEEK / 7)
+    work_days = max(MIN_WORK_DAYS, sales_history_days(db, now) * WORK_DAYS_PER_WEEK / 7)
     rows = (
-        db.query(Movement.item_id, func.sum(Movement.quantity))
-        .filter(Movement.date >= start, Movement.type.in_(CONSUMPTION_TYPES))
-        .group_by(Movement.item_id)
+        db.query(Sale.item_id, func.sum(Sale.quantity))
+        .filter(Sale.date >= start)
+        .group_by(Sale.item_id)
         .all()
     )
-    return {item_id: -total / work_days for item_id, total in rows if total}
+    return {item_id: total / work_days for item_id, total in rows if total}
 
 
 def _round_up(qty: float, unit: str) -> float:
@@ -306,25 +302,52 @@ def _topological(items_by_id: dict) -> list:
 
 def replenishment(db: Session, now=None) -> dict:
     """
-    Para cada item com estoque:
-      alvo      = consumo médio/dia × dias de cobertura + estoque mínimo
-      disponível = estoque − o que a produção sugerida vai consumir dele
-      falta     = alvo − disponível
-    Itens produzidos viram ordem de produção (respeitando o lote mínimo);
-    a produção sugerida desconta dos insumos dela, e assim por diante até
-    chegar na lista de compras (arredondada para a embalagem do fornecedor).
+    A demanda nasce nos PRATOS VENDIDOS:
+      1. média de pratos vendidos por dia (últimas 4 semanas);
+      2. pelas fichas, vira consumo diário de porções/subprodutos e insumos
+         (prato → porção → insumo);
+      3. estoque na cadeia = estoque do item + o que já está pronto nos itens
+         feitos com ele (feijão porcionado conta como feijão);
+      4. alvo = consumo/dia × dias de cobertura + estoque de segurança;
+         falta = alvo − estoque na cadeia, e nunca menos do que a produção
+         sugerida vai tirar do item agora.
+    Itens produzidos viram ordem de produção (respeitando o lote mínimo); a lista
+    de compras é arredondada para a embalagem do fornecedor.
     """
     items = db.query(Item).filter(Item.active.is_(True), Item.kind != "venda").all()
     by_id = {i.id: i for i in items}
-    daily = daily_consumption(db, now)
+    dishes = db.query(Item).filter(Item.active.is_(True), Item.kind == "venda").all()
+    order = _topological(by_id)   # quem consome antes de quem é consumido
+
+    # 1–2. consumo diário vindo das vendas, descendo pelas fichas
+    sold = daily_sales(db, now)
+    demand = defaultdict(float)
+    for d in dishes:
+        rate = sold.get(d.id, 0.0)
+        for line in d.recipe if rate else []:
+            demand[line.component_id] += rate * line.quantity
+    for it in order:
+        if it.kind == "producao" and it.yield_quantity and demand[it.id]:
+            for line in it.recipe:
+                demand[line.component_id] += demand[it.id] * line.quantity / it.yield_quantity
+
+    # 3. estoque na cadeia (o item + o equivalente já transformado em itens produzidos)
+    downstream = defaultdict(float)
+    chain = {}
+    for it in order:
+        chain[it.id] = it.stock + downstream[it.id]
+        if it.kind == "producao" and it.yield_quantity:
+            for line in it.recipe:
+                downstream[line.component_id] += max(chain[it.id], 0.0) * line.quantity / it.yield_quantity
+
+    # 4. produção e compras
     projected = {i.id: i.stock for i in items}
     for_production = defaultdict(float)
     produce, buy, warnings = [], [], []
-
-    for it in _topological(by_id):
-        d = daily.get(it.id, 0.0)
+    for it in order:
+        d = demand.get(it.id, 0.0)
         target = d * it.coverage_days + it.min_stock
-        need = target - projected[it.id]
+        need = max(target - chain[it.id], -projected[it.id])
         if need <= EPS:
             continue
         row = {
@@ -332,6 +355,7 @@ def replenishment(db: Session, now=None) -> dict:
             "name": it.name,
             "unit": it.unit,
             "stock": round(it.stock, 3),
+            "chain_stock": round(chain[it.id], 3),
             "daily": round(d, 3),
             "coverage_days": it.coverage_days,
             "min_stock": it.min_stock,
@@ -370,7 +394,8 @@ def replenishment(db: Session, now=None) -> dict:
         "buy_total": round(sum(r["estimated_cost"] for r in buy), 2),
         "warnings": warnings,
         "window_days": WINDOW_DAYS,
-        "history_days": round(history_days(db, now), 1),
+        "history_days": round(sales_history_days(db, now), 1),
+        "has_sales": bool(sold),
         "min_work_days": MIN_WORK_DAYS,
         "work_days_per_week": WORK_DAYS_PER_WEEK,
     }

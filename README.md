@@ -64,9 +64,11 @@ Batata 2 kg → Porção 200 g → Batata frita P (1 porção) / G (2 porções)
 
 ## Regra da reposição
 
-- Consumo médio = saídas das últimas **4 semanas** ÷ dias de trabalho (**6 dias por semana**).
-- Alvo = consumo médio por dia × **dias de cobertura** do item + estoque de segurança.
-- Os itens produzidos são calculados primeiro. O que a produção sugerida vai consumir é descontado dos insumos, e só então sai a lista de compras, arredondada para a embalagem do fornecedor.
+- A demanda vem dos **pratos vendidos**: média das últimas **4 semanas** ÷ dias de trabalho (**6 dias por semana**; com menos de uma semana de vendas, divide por pelo menos 6 dias).
+- Pelas fichas técnicas, a venda de pratos vira consumo diário de porções/subprodutos e, por eles, de insumos (prato → porção → insumo).
+- Estoque na cadeia: o que já está pronto em porções conta como estoque do insumo.
+- Alvo = consumo por dia × **dias de cobertura** do item + estoque de segurança. Falta = alvo − estoque na cadeia (e nunca menos do que a produção sugerida vai tirar do item).
+- Os itens produzidos são calculados primeiro; a lista de compras sai arredondada para a embalagem do fornecedor.
 - Para itens que dão muito trabalho para pouca diferença de tempo (nhoque, bifes), aumente os **dias de cobertura** (ex.: 12) e defina um **lote mínimo**.
 
 ## Testes
