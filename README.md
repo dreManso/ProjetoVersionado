@@ -12,6 +12,10 @@ python run.py       # abre em http://localhost:8000
 
 Tudo roda no seu computador: as contas são feitas pelo próprio app e não gastam créditos de IA. O app funciona sem internet. O banco de dados é o arquivo `cozinha.db`. Para recomeçar do zero, apague esse arquivo.
 
+## Atualização automática
+
+Ao abrir o programa (`Abrir Cozinha.bat` ou `python run.py`), ele confere se há versão nova no GitHub. Se houver, baixa e instala sozinho, mostra o que mudou e abre já atualizado. Os dados (`cozinha.db`) nunca são alterados pela atualização. Sem internet, abre a versão instalada. A versão aparece no menu, ao lado de "Cozinha", e o histórico fica no `CHANGELOG.md`.
+
 ## Trazer os cadastros da primeira versão
 
 Se você usou a primeira versão (telas "Ingredientes" e "Preparações", arquivo `restaurante.db`):

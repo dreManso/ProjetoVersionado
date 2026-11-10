@@ -2,6 +2,9 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.2.0 — 10/11/2026
+- Atualização automática: ao abrir, o programa baixa e instala a versão nova, sem tocar nos seus dados.
+
 ## 2.1.1 — 10/11/2026
 - Número da versão aparece no menu do app.
 - Removido o botão "Colar lista de comprados" (descartado a pedido).
