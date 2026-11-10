@@ -181,7 +181,9 @@ def test_lote_minimo_nhoque():
 
 def test_versao_exposta():
     from app.version import __version__
-    assert client.get("/api/version").json() == {"version": __version__}
+    v = client.get("/api/version").json()
+    assert v["version"] == __version__
+    assert "lan_url" in v   # endereço para abrir no celular (pode ser None sem rede)
 
 
 def test_ficha_em_gramas_para_item_em_kg():
