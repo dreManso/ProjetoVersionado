@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cozinha — Vendas</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container py-4">
+  <h4 class="fw-bold mb-1"><i class="bi bi-cart3"></i> Fechamento de vendas</h4>
+  <p class="help">Digite quantos de cada prato saíram (do relatório do dia do PDV/iFood) ou cole a lista. A baixa é feita nas porções e embalagens de cada prato.</p>
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+          <span class="fw-semibold me-auto">Pratos vendidos</span>
+          <select class="form-select form-select-sm" style="max-width:150px" id="s-channel">
+            <option value="direta">Venda direta</option><option value="ifood">iFood</option></select>
+          <input type="date" class="form-control form-control-sm" style="max-width:160px" id="s-day">
+          <input class="form-control form-control-sm" style="max-width:180px" id="s-filter" placeholder="Filtrar...">
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light"><tr><th>Prato</th><th class="num">Preço</th><th class="num">Qtd</th><th class="num">Subtotal</th></tr></thead>
+            <tbody id="grid"></tbody>
+          </table>
+        </div>
+        <div class="card-footer d-flex align-items-center gap-3">
+          <div class="me-auto"><span class="help">Total</span> <span class="fs-5 fw-bold text-success" id="s-total">R$ 0,00</span> <span class="help" id="s-count"></span></div>
+          <button class="btn btn-outline-secondary btn-sm" onclick="clearGrid()">Limpar</button>
+          <button class="btn btn-success" onclick="save()"><i class="bi bi-check-circle"></i> Registrar vendas</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold"><i class="bi bi-clipboard"></i> Colar lista</div>
+        <div class="card-body">
+          <textarea class="form-control mb-2" id="paste" rows="5" placeholder="Estrogonofe;12&#10;Parmegiana	8&#10;3 Batata frita grande"></textarea>
+          <div class="help mb-2">Uma linha por prato: <code>nome;quantidade</code>, colado de planilha, ou <code>quantidade nome</code>.</div>
+          <button class="btn btn-outline-primary btn-sm" onclick="applyPaste()">Preencher a tabela</button>
+          <div id="paste-result" class="small mt-2"></div>
+        </div>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Últimos lançamentos</div>
+        <div class="table-responsive" style="max-height:420px">
+          <table class="table table-sm mb-0">
+            <tbody id="hist"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+renderNav('vendas');
+const $ = id => document.getElementById(id);
+let dishes = [], qtys = {}, prices = {};
+$('s-day').value = todayISO();
+$('s-filter').oninput = renderGrid;
+
+// preço de cada prato conforme o canal (venda direta ou iFood)
+const channelPrice = d => ($('s-channel').value === 'ifood' ? d.ifood_price : d.selling_price) || 0;
+async function load() {
+  dishes = (await api.items()).filter(d => d.active && (d.kind === 'venda' || d.direct_sale));
+  dishes.forEach(d => { if (prices[d.id] == null) prices[d.id] = channelPrice(d); });
+  renderGrid(); loadHist();
+}
+$('s-channel').onchange = () => { dishes.forEach(d => prices[d.id] = channelPrice(d)); renderGrid(); };
+
+function renderGrid() {
+  const f = norm($('s-filter').value);
+  const rows = dishes.filter(d => !f || norm(d.name).includes(f));
+  $('grid').innerHTML = rows.length ? rows.map(d => `<tr class="${qtys[d.id] ? 'table-success' : ''}">
+      <td>${esc(d.name)}${d.direct_sale ? ' <span class="badge bg-info text-dark">direto</span>' : d.recipe.length ? '' : ' <i class="bi bi-exclamation-triangle text-warning" title="Sem ficha técnica"></i>'}</td>
+      <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${prices[d.id] != null ? prices[d.id].toFixed(2).replace('.', ',') : ''}" oninput="prices[${d.id}]=parseNum(this.value)||0;totals()"></td>
+      <td><input class="form-control form-control-sm qty-input" inputmode="numeric" value="${qtys[d.id] || ''}" oninput="qtys[${d.id}]=parseNum(this.value)||0;this.closest('tr').classList.toggle('table-success',qtys[${d.id}]>0);totals()"></td>
+      <td class="num" id="sub-${d.id}"></td></tr>`).join('')
+    : '<tr><td colspan="4" class="text-center text-muted py-3">Nenhum prato cadastrado. Cadastre em "Itens e fichas".</td></tr>';
+  totals();
+}
+
+function totals() {
+  let t = 0, n = 0;
+  dishes.forEach(d => {
+    const s = (qtys[d.id] || 0) * (prices[d.id] || 0); t += s; n += qtys[d.id] || 0;
+    const el = $('sub-' + d.id); if (el) el.textContent = qtys[d.id] ? brl(s) : '';
+  });
+  $('s-total').textContent = brl(t);
+  $('s-count').textContent = n ? `${num(n, 1)} pratos` : '';
+}
+
+function clearGrid() { qtys = {}; renderGrid(); }
+
+function applyPaste() {
+  const index = Object.fromEntries(dishes.map(d => [norm(d.name), d]));
+  const ok = [], bad = [];
+  for (const raw of $('paste').value.split('\n')) {
+    const line = raw.trim(); if (!line) continue;
+    let m = line.match(/^(.*?)\s*[;\t,|]\s*([\d.,]+)\s*$/) || line.match(/^(.*\D)\s+([\d.,]+)$/);
+    let name, q;
+    if (m) { name = m[1]; q = parseNum(m[2]); }
+    else if ((m = line.match(/^([\d.,]+)\s*x?\s+(.+)$/i))) { q = parseNum(m[1]); name = m[2]; }
+    const d = name && index[norm(name)];
+    if (d && q > 0) { qtys[d.id] = (qtys[d.id] || 0) + q; ok.push(`${d.name} +${q}`); }
+    else bad.push(line);
+  }
+  renderGrid();
+  $('paste-result').innerHTML = (ok.length ? `<div class="text-success">${ok.length} linha(s) aplicada(s)</div>` : '') +
+    (bad.length ? `<div class="text-danger">Não reconhecido (confira o nome do prato):<br>${bad.map(esc).join('<br>')}</div>` : '');
+}
+
+async function save() {
+  const lines = dishes.filter(d => qtys[d.id] > 0).map(d => ({ item_id: d.id, quantity: qtys[d.id], unit_price: prices[d.id] || 0 }));
+  if (!lines.length) return toast('Nenhuma quantidade informada', 'error');
+  await safe(async () => {
+    const r = await api.registerSales({ day: $('s-day').value || null, channel: $('s-channel').value, lines });
+    toast(`${r.created} lançamento(s), total ${brl(r.total)}. Estoque atualizado.`);
+    r.warnings.forEach(w => toast(w, 'warn'));
+    qtys = {}; $('paste').value = ''; $('paste-result').innerHTML = '';
+    renderGrid(); loadHist();
+  });
+}
+
+async function loadHist() {
+  const rows = await api.sales();
+  $('hist').innerHTML = rows.length ? rows.map(s => `<tr><td class="small text-muted">${dt(s.date)}</td><td>${esc(s.item_name)}${s.channel === 'ifood' ? ' <span class="badge bg-danger">iFood</span>' : ''}</td>
+      <td class="num">× ${num(s.quantity, 1)}</td><td class="num">${brl(s.total)}</td>
+      <td><button class="btn btn-sm btn-link text-danger p-0" title="Desfazer (devolve ao estoque)" onclick="undo(${s.id})"><i class="bi bi-arrow-counterclockwise"></i></button></td></tr>`).join('')
+    : '<tr><td class="text-center text-muted py-3">Nenhuma venda</td></tr>';
+}
+
+async function undo(id) {
+  if (!confirm('Desfazer este lançamento? As porções voltam para o estoque.')) return;
+  await safe(async () => { await api.undoSale(id); toast('Lançamento desfeito'); loadHist(); });
+}
+
+load();
+</script>
+</body>
+</html>

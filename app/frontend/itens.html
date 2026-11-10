@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cozinha — Itens e fichas técnicas</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h4 class="fw-bold mb-0"><i class="bi bi-journal-richtext"></i> Itens e fichas técnicas</h4>
+    <button class="btn btn-primary" onclick="openCreate()"><i class="bi bi-plus-lg"></i> Novo item</button>
+  </div>
+
+  <ul class="nav nav-pills mb-3" id="tabs">
+    <li class="nav-item"><button class="nav-link" data-kind="compra">Comprados <span class="help">(insumos, embalagens)</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-kind="producao">Produzidos <span class="help">(porções, molhos, nhoque)</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-kind="venda">Pratos do cardápio</button></li>
+  </ul>
+  <div class="help mb-2" id="tab-help"></div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark" id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Modal item -->
+<div class="modal fade" id="mItem" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title" id="mTitle">Novo item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-4">
+          <div class="col-lg-5">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nome *</label>
+              <input class="form-control" id="f-name">
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-7">
+                <label class="form-label fw-semibold">Tipo *</label>
+                <select class="form-select" id="f-kind">
+                  <option value="compra">Comprado</option>
+                  <option value="producao">Produzido na cozinha</option>
+                  <option value="venda">Prato do cardápio</option>
+                </select>
+              </div>
+              <div class="col-5 show-stock">
+                <label class="form-label fw-semibold">Unidade de estoque *</label>
+                <select class="form-select" id="f-unit">
+                  <option value="kg">kg</option><option value="g">g</option>
+                  <option value="L">L</option><option value="mL">mL</option>
+                  <option value="un">un / porção</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-2 show-compra">
+              <div class="col-7">
+                <label class="form-label">Embalagem de compra</label>
+                <div class="input-group">
+                  <input class="form-control" id="f-pack" inputmode="decimal" placeholder="ex: 500">
+                  <select class="form-select" id="f-packunit" style="max-width:80px"></select>
+                </div>
+                <div class="help">Quanto vem em cada pacote/caixa (deixe vazio se compra a granel)</div>
+              </div>
+              <div class="col-5">
+                <label class="form-label">Nome da embalagem</label>
+                <input class="form-control" id="f-packlabel" placeholder="pacote, caixa">
+              </div>
+            </div>
+            <div class="row g-2 mb-3 show-compra">
+              <div class="col-12">
+                <label class="form-label">Preço pago</label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input class="form-control" id="f-cost" inputmode="decimal">
+                  <select class="form-select" id="f-costbasis" style="max-width:200px"></select>
+                </div>
+                <div><span id="f-costcalc" class="fw-semibold text-primary"></span>
+                  <span class="help">· atualiza sozinho a cada compra lançada</span></div>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-2 show-producao show-portion">
+              <div class="col-6">
+                <label class="form-label fw-semibold">Peso de cada porção</label>
+                <div class="input-group"><input class="form-control" id="f-portion" inputmode="decimal" placeholder="ex: 300">
+                  <select class="form-select" id="f-portionunit" style="max-width:80px">
+                    <option>g</option><option>kg</option><option>mL</option><option>L</option></select></div>
+                <div class="help">Opcional. Permite informar o rendimento em kg</div>
+              </div>
+            </div>
+            <div class="row g-2 mb-3 show-producao">
+              <div class="col-6">
+                <label class="form-label fw-semibold">Rendimento de 1 receita</label>
+                <div class="input-group"><input class="form-control" id="f-yield" inputmode="decimal">
+                  <select class="form-select" id="f-yieldunit" style="max-width:80px"></select></div>
+                <div class="help" id="f-yieldcalc">O que a receita realmente produz depois de pronta (pesado/contado)</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Lote mínimo</label>
+                <div class="input-group"><input class="form-control" id="f-batch" inputmode="decimal" value="0">
+                  <span class="input-group-text u"></span></div>
+                <div class="help">Nunca sugerir produzir menos que isso</div>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-2 show-stock">
+              <div class="col-6">
+                <label class="form-label">Perda (preparo ou defeito)</label>
+                <div class="input-group"><input class="form-control" id="f-loss" inputmode="decimal" placeholder="0">
+                  <span class="input-group-text">%</span></div>
+                <div class="help">Casca, limpeza, descongelamento, unidades com defeito... Aumenta só o CUSTO nas receitas, não a quantidade. Vale para todas as receitas (cada receita pode mudar)</div>
+              </div>
+              <div class="col-6 d-flex align-items-center"><div id="f-losscalc" class="fw-semibold text-primary small"></div></div>
+            </div>
+            <div class="row g-2 mb-3 show-stock">
+              <div class="col-6">
+                <label class="form-label">Dias de cobertura</label>
+                <input class="form-control" id="f-cov" inputmode="decimal" value="6">
+                <div class="help">Quantos dias de trabalho o estoque deve aguentar</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Estoque de segurança</label>
+                <div class="input-group"><input class="form-control" id="f-min" inputmode="decimal" value="0">
+                  <span class="input-group-text u"></span></div>
+              </div>
+            </div>
+
+            <div class="form-check form-switch mb-2 show-stock">
+              <input class="form-check-input" type="checkbox" id="f-direct">
+              <label class="form-check-label fw-semibold" for="f-direct">Também vendo direto ao cliente</label>
+              <div class="help">Refrigerante, água, cerveja, sobremesa pronta... Aparece no fechamento de vendas e cada venda tira 1 <span class="u"></span> do estoque. Não precisa cadastrar como prato.</div>
+            </div>
+            <div class="row g-2 mb-1 show-venda">
+              <div class="col-5">
+                <label class="form-label">Lucro sobre o custo</label>
+                <div class="input-group"><input class="form-control" id="f-markup" inputmode="decimal" placeholder="ex: 200">
+                  <span class="input-group-text">%</span></div>
+              </div>
+              <div class="col-7">
+                <label class="form-label fw-semibold">Preço venda direta <span class="help" id="f-priceunit"></span></label>
+                <div class="input-group"><span class="input-group-text">R$</span>
+                  <input class="form-control" id="f-price" inputmode="decimal"></div>
+              </div>
+            </div>
+            <div class="mb-3 show-venda help">Digite o lucro OU o preço: o outro é calculado.
+              <div id="f-pricecalc" class="fs-6 text-body mt-1"></div>
+              <div id="direct-preview" class="fs-6 text-body mt-1"></div></div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="f-active" checked>
+              <label class="form-check-label" for="f-active">Ativo</label>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Observações / modo de preparo</label>
+              <textarea class="form-control" id="f-notes" rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="col-lg-7 show-recipe">
+            <h6 class="fw-bold">Ficha técnica</h6>
+            <p class="help" id="recipe-help"></p>
+            <table class="table table-sm">
+              <thead><tr><th>Componente</th><th class="num">Quantidade</th><th></th><th class="num" title="Perda: aumenta só o custo da linha, não a quantidade">Perda</th><th class="num">Custo</th><th></th></tr></thead>
+              <tbody id="recipe-body"></tbody>
+            </table>
+            <button class="btn btn-sm btn-outline-primary" onclick="addLine()"><i class="bi bi-plus"></i> Adicionar componente</button>
+            <div class="card bg-light mt-3"><div class="card-body py-2" id="preview"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-danger me-auto d-none" id="btn-del" onclick="removeItem()"><i class="bi bi-trash"></i> Excluir</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="save()"><i class="bi bi-check-lg"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal custo -->
+<div class="modal fade" id="mCost" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="cTitle"></h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="cBody"></div>
+  </div></div>
+</div>
+
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+renderNav('itens');
+let all = [], kind = new URLSearchParams(location.search).get('tipo') || 'compra', editing = null, lines = [];
+const mItem = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('mItem'));
+const $ = id => document.getElementById(id);
+
+const HELP = {
+  compra: 'O que vem do fornecedor. O custo é atualizado pela média das compras (peso bruto e valor total).',
+  producao: 'O que a cozinha produz ou fraciona e guarda em estoque. A ficha diz o que entra em UMA receita e o rendimento diz o que sai de fato.',
+  venda: 'Pratos do cardápio. A ficha diz o que vai em 1 prato (porções, molhos, embalagens). A venda baixa exatamente esses itens. Refrigerante, água e outros itens de revenda não precisam de prato: no item comprado, marque "Também vendo direto ao cliente".',
+};
+
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { kind = b.dataset.kind; render(); });
+
+let fee = 30;  // taxa do iFood (%), uma só para todos os pratos
+async function load() {
+  [all, { ifood_fee_percent: fee }] = await Promise.all([api.items(), api.settings()]);
+  render();
+}
+async function saveFee() {
+  const v = parseNum($('fee-input').value);
+  if (v == null || v < 0 || v > 90) return toast('Informe uma taxa entre 0 e 90%', 'error');
+  await safe(async () => { await api.saveSettings({ ifood_fee_percent: v }); toast(`Taxa do iFood: ${pct(v)}. Preços iFood recalculados.`); await load(); });
+}
+
+function statusBadge(i) {
+  const direct = i.direct_sale ? ' <span class="badge bg-info text-dark" title="Item comprado/produzido vendido direto ao cliente">venda direta</span>' : '';
+  if (!i.cost_issues.length) return direct;
+  return `<i class="bi bi-exclamation-triangle-fill text-warning" title="${esc(i.cost_issues.join('\n'))}"></i>` + direct;
+}
+
+function render() {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+  $('tab-help').innerHTML = esc(HELP[kind]) + (kind === 'venda' ? `
+    <div class="d-flex align-items-center gap-2 mt-2 text-body">Taxa do iFood:
+      <div class="input-group input-group-sm" style="width:100px"><input class="form-control text-end" id="fee-input" inputmode="decimal" value="${num(fee, 2)}"><span class="input-group-text">%</span></div>
+      <button class="btn btn-sm btn-outline-primary" onclick="saveFee()">Salvar</button>
+      <span class="help">Preço iFood = venda direta ÷ ${num(1 - fee / 100, 2)}</span></div>` : '');
+  const rows = all.filter(i => i.kind === kind || (kind === 'venda' && i.direct_sale));
+  const heads = {
+    compra: ['Nome', 'Estoque', 'Custo médio', 'Embalagem', 'Cobertura', ''],
+    producao: ['Nome', 'Estoque', 'Rende/receita', 'Custo pela ficha', 'Custo real médio', 'Cobertura / lote mín.', ''],
+    venda: ['Prato', 'Custo pela ficha', 'Lucro', 'Venda direta', 'iFood', 'CMV', ''],
+  }[kind];
+  $('thead').innerHTML = '<tr>' + heads.map((h, i) => `<th class="${i > 0 && i < heads.length - 1 ? 'num' : ''}">${h}</th>`).join('') + '</tr>';
+  if (!rows.length) { $('tbody').innerHTML = `<tr><td colspan="${heads.length}" class="text-center text-muted py-4">Nenhum item cadastrado</td></tr>`; return; }
+  $('tbody').innerHTML = rows.map(i => {
+    const name = `<td class="fw-semibold">${esc(i.name)} ${statusBadge(i)} ${i.active ? '' : '<span class="badge bg-secondary">inativo</span>'}</td>`;
+    const actions = `<td class="text-end text-nowrap">
+        ${i.kind !== 'compra' ? `<button class="btn btn-sm btn-outline-info" title="Custo detalhado" onclick="viewCost(${i.id})"><i class="bi bi-calculator"></i></button>` : ''}
+        <button class="btn btn-sm btn-outline-primary" title="Editar" onclick="openEdit(${i.id})"><i class="bi bi-pencil"></i></button></td>`;
+    const stock = `<td class="num ${i.stock < -1e-6 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td>`;
+    if (kind === 'compra') return `<tr>${name}${stock}
+        <td class="num">${i.avg_cost ? unitPrice(i.avg_cost, i.unit) : '<span class="text-warning">sem custo</span>'}
+          ${i.loss_percent ? `<div class="help">perda ${pct(i.loss_percent)}${i.avg_cost ? ` → custo ${unitPrice(i.avg_cost / (1 - i.loss_percent / 100), i.unit)}` : ''}</div>` : ''}</td>
+        <td class="num">${i.pack_size ? qtyF(i.pack_size, i.unit) + ' ' + esc(i.pack_label || '') : '—'}</td>
+        <td class="num">${num(i.coverage_days)} dias</td>${actions}</tr>`;
+    if (kind === 'producao') return `<tr>${name}${stock}
+        <td class="num">${i.yield_quantity ? qty(i.yield_quantity, i.unit) : '<span class="text-warning">definir</span>'}</td>
+        <td class="num">${i.unit_cost != null ? unitPrice(i.unit_cost, i.unit) : '—'}</td>
+        <td class="num">${i.avg_cost ? unitPrice(i.avg_cost, i.unit) : '—'}</td>
+        <td class="num">${num(i.coverage_days)} dias${i.min_batch ? ' / ' + qty(i.min_batch, i.unit) : ''}</td>${actions}</tr>`;
+    return `<tr>${name}
+        <td class="num">${brl(i.sale_cost ?? i.unit_cost)}${i.direct_sale ? `<div class="help">custo de 1 ${esc(i.unit)}</div>` : ''}</td>
+        <td class="num ${i.markup_percent != null && i.markup_percent < 100 ? 'text-danger fw-bold' : ''}">${pct(i.markup_percent)}</td>
+        <td class="num">${brl(i.selling_price)}</td><td class="num">${brl(i.ifood_price)}</td>
+        <td class="num ${i.cmv_percent > 40 ? 'text-danger fw-bold' : ''}">${pct(i.cmv_percent)}</td>${actions}</tr>`;
+  }).join('');
+}
+
+// ── formulário ──
+function setField(id, v) { $(id).value = v ?? ''; }
+function toggleKind() {
+  const k = $('f-kind').value;
+  document.querySelectorAll('.show-compra').forEach(e => e.classList.toggle('d-none', k !== 'compra'));
+  document.querySelectorAll('.show-producao').forEach(e => e.classList.toggle('d-none', k !== 'producao'));
+  const sells = k === 'venda' || $('f-direct').checked;
+  document.querySelectorAll('.show-venda').forEach(e => e.classList.toggle('d-none', !sells));
+  document.querySelectorAll('.show-stock').forEach(e => e.classList.toggle('d-none', k === 'venda'));
+  document.querySelectorAll('.show-recipe').forEach(e => e.classList.toggle('d-none', k === 'compra'));
+  $('recipe-help').textContent = k === 'producao'
+    ? 'Quantidades de UMA receita/lote. A perda (casca, descongelamento...) aumenta só o custo da linha. Escolha g ou kg (mL ou L) em cada linha.'
+    : 'Quantidades para montar 1 prato (ex.: 1 porção de arroz, 300 g de macarrão, 1 embalagem). A perda aumenta só o custo da linha. Escolha g ou kg (mL ou L) em cada linha.';
+  updateUnits();
+}
+function updateUnits() {
+  const u = $('f-kind').value === 'venda' ? 'un' : $('f-unit').value;
+  document.querySelectorAll('.u').forEach(e => e.textContent = u);
+  // unidade da embalagem: mesma família da unidade de estoque
+  const pu = $('f-packunit').value;
+  $('f-packunit').innerHTML = (UNIT_OPTIONS[u] || [u]).map(x => `<option ${x === pu ? 'selected' : ''}>${x}</option>`).join('');
+  renderCostBasis();
+  updateYieldUnits();
+  renderLines();
+}
+
+// ── porção com peso e rendimento em porções ou em kg ──
+let pendingYieldUnit = null;
+function formItem() {  // o item como está no formulário, para converter unidades
+  const unit = $('f-kind').value === 'venda' ? 'un' : $('f-unit').value;
+  const ps = parseNum($('f-portion').value);
+  return { unit, portion_size: unit === 'un' && ps > 0 ? ps : null, portion_unit: $('f-portionunit').value };
+}
+function updateYieldUnits() {
+  const it = formItem(), isProd = $('f-kind').value === 'producao';
+  document.querySelectorAll('.show-portion').forEach(e => e.classList.toggle('d-none', !(isProd && it.unit === 'un')));
+  const want = pendingYieldUnit || $('f-yieldunit').value;
+  pendingYieldUnit = null;
+  const opts = itemUnits(it);
+  $('f-yieldunit').innerHTML = opts.map(u => `<option ${u === want ? 'selected' : ''}>${u}</option>`).join('');
+  renderYieldCalc();
+}
+function yieldInStock() {
+  const it = formItem(), y = parseNum($('f-yield').value), yu = $('f-yieldunit').value;
+  if (!(y > 0)) return null;
+  return itemUnits(it).includes(yu) ? toStock(y, yu, it) : null;
+}
+function renderYieldCalc() {
+  const it = formItem(), y = parseNum($('f-yield').value), yu = $('f-yieldunit').value, ys = yieldInStock();
+  let txt = 'O que a receita realmente produz depois de pronta (pesado/contado)';
+  if (ys && it.unit === 'un' && it.portion_size) {
+    const portion = `${num(it.portion_size)} ${it.portion_unit}`;
+    txt = yu === 'un'
+      ? `= ${qtyF(convertQty(ys * it.portion_size, it.portion_unit, ['g', 'kg'].includes(it.portion_unit) ? 'kg' : 'L'), ['g', 'kg'].includes(it.portion_unit) ? 'kg' : 'L')} prontos (porções de ${portion})`
+      : `= ${num(ys, 2)} porções de ${portion}`;
+  } else if (ys && yu !== it.unit) {
+    txt = `= ${qty(ys, it.unit)}`;
+  }
+  $('f-yieldcalc').textContent = txt;
+  renderPreview();
+}
+$('f-portion').addEventListener('input', updateYieldUnits);
+$('f-portionunit').addEventListener('change', updateYieldUnits);
+$('f-yieldunit').addEventListener('change', renderYieldCalc);
+
+// Preço: "por embalagem" ou "por unidade de estoque"; o custo por kg/L/un é calculado
+let costDirty = false, basisTouched = false;
+function packSizeInStockUnit() {
+  const p = parseNum($('f-pack').value);
+  return p > 0 ? convertQty(p, $('f-packunit').value, $('f-unit').value) : null;
+}
+function renderCostBasis() {
+  const u = $('f-unit').value, label = $('f-packlabel').value.trim() || 'embalagem';
+  // padrão: "por embalagem" quando há embalagem, a menos que a pessoa tenha escolhido outra opção
+  const cur = basisTouched ? $('f-costbasis').value : (packSizeInStockUnit() ? 'pack' : 'unit');
+  const opts = [['unit', `por ${u}`]];
+  if (packSizeInStockUnit()) opts.unshift(['pack', `por ${label}`]);
+  const sel = opts.some(o => o[0] === cur) ? cur : opts[0][0];
+  $('f-costbasis').innerHTML = opts.map(([v, t]) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  renderCostCalc();
+}
+function costPerStockUnit() {
+  const v = parseNum($('f-cost').value);
+  if (v == null) return null;
+  if ($('f-costbasis').value === 'pack') { const ps = packSizeInStockUnit(); return ps ? v / ps : null; }
+  return v;
+}
+function renderCostCalc() {
+  const c = costPerStockUnit(), u = $('f-unit').value;
+  $('f-costcalc').textContent = c == null ? '' : `= ${unitPrice(c, u).replace('/', ' por ')}`;
+  renderLossCalc();
+}
+// "Custo nas receitas: R$ 9,89 por kg (+11,1%)" — a perda encarece, não muda a quantidade
+function renderLossCalc() {
+  const loss = Math.min(parseNum($('f-loss').value) || 0, 95), u = $('f-unit').value;
+  if (!loss) { $('f-losscalc').textContent = ''; return; }
+  const c = $('f-kind').value === 'compra' ? costPerStockUnit() : (editing && editing.unit_cost);
+  const extra = (1 / (1 - loss / 100) - 1) * 100;
+  $('f-losscalc').textContent = c
+    ? `Custo nas receitas: ${unitPrice(c / (1 - loss / 100), u).replace('/', ' por ')} (+${num(extra, 1)}%)`
+    : `Custo nas receitas: +${num(extra, 1)}%`;
+}
+$('f-loss').addEventListener('input', () => { renderLossCalc(); renderPreview(); });
+['f-cost', 'f-pack', 'f-yield'].forEach(id => $(id).addEventListener('input', () => renderPreview()));
+['f-costbasis', 'f-packunit', 'f-yieldunit'].forEach(id => $(id).addEventListener('change', () => renderPreview()));
+$('f-kind').onchange = toggleKind;
+$('f-direct').onchange = () => { toggleKind(); renderPreview(); };
+$('f-unit').onchange = updateUnits;
+['f-pack', 'f-packunit', 'f-packlabel'].forEach(id => $(id).addEventListener('input', renderCostBasis));
+$('f-packunit').addEventListener('change', renderCostBasis);
+$('f-costbasis').onchange = () => { costDirty = true; basisTouched = true; renderCostCalc(); };
+$('f-cost').oninput = () => { costDirty = true; renderCostCalc(); };
+$('f-yield').oninput = renderYieldCalc;
+// lucro ↔ preço: o último digitado manda
+let priceDriver = 'price';
+$('f-price').oninput = () => { priceDriver = 'price'; renderPreview(); };
+$('f-markup').oninput = () => { priceDriver = 'markup'; renderPreview(); };
+const dec = (v, d) => v.toFixed(d).replace('.', ',');
+
+function openCreate() {
+  editing = null; lines = []; costDirty = false; basisTouched = false;
+  $('mTitle').textContent = 'Novo item';
+  ['f-name', 'f-cost', 'f-pack', 'f-packlabel', 'f-yield', 'f-price', 'f-notes', 'f-portion', 'f-markup'].forEach(id => setField(id, ''));
+  priceDriver = 'price';
+  $('f-portionunit').value = 'g'; $('f-yieldunit').innerHTML = '';
+  setField('f-batch', 0); setField('f-cov', 6); setField('f-min', 0); setField('f-loss', '');
+  $('f-kind').value = kind; $('f-unit').value = kind === 'producao' ? 'un' : 'kg';
+  $('f-packunit').innerHTML = ''; $('f-costbasis').innerHTML = '';
+  $('f-active').checked = true; $('f-direct').checked = false;
+  $('btn-del').classList.add('d-none');
+  toggleKind(); mItem().show();
+}
+
+function openEdit(id) {
+  const i = all.find(x => x.id === id); editing = i;
+  $('mTitle').textContent = 'Editar: ' + i.name;
+  setField('f-name', i.name); $('f-kind').value = i.kind; $('f-unit').value = i.unit;
+  costDirty = false; basisTouched = false;
+  // embalagem na unidade mais fácil de ler (0,5 kg → 500 g); preço por embalagem se houver
+  const pu = i.pack_size ? friendlyUnit(i.pack_size, i.unit) : i.unit;
+  $('f-packunit').innerHTML = `<option>${pu}</option>`;
+  setField('f-pack', i.pack_size ? convertQty(i.pack_size, i.unit, pu) : '');
+  setField('f-packlabel', i.pack_label);
+  $('f-costbasis').innerHTML = `<option value="${i.pack_size ? 'pack' : 'unit'}"></option>`;
+  setField('f-cost', i.avg_cost ? +(i.pack_size ? i.avg_cost * i.pack_size : i.avg_cost).toFixed(2) : '');
+  setField('f-portion', i.portion_size); $('f-portionunit').value = i.portion_unit || 'g';
+  setField('f-yield', i.yield_display ?? i.yield_quantity); pendingYieldUnit = i.yield_unit || i.unit;
+  setField('f-batch', i.min_batch); setField('f-cov', i.coverage_days);
+  setField('f-min', i.min_stock); setField('f-price', i.selling_price ? dec(i.selling_price, 2) : ''); setField('f-notes', i.notes);
+  priceDriver = 'price'; setField('f-markup', '');
+  setField('f-loss', i.loss_percent || '');
+  $('f-active').checked = i.active; $('f-direct').checked = !!i.direct_sale;
+  // reabre na unidade em que foi digitada (1500 g continua 1500 g)
+  lines = i.recipe.map(r => ({ component_id: r.component_id, quantity: r.display_quantity, unit: r.display_unit, loss: r.loss_percent }));
+  $('btn-del').classList.remove('d-none');
+  toggleKind(); mItem().show();
+}
+
+function componentOptions(selected) {
+  const opts = all.filter(i => i.kind !== 'venda' && (!editing || i.id !== editing.id))
+    .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+  return '<option value="">— escolha —</option>' + ['compra', 'producao'].map(k =>
+    `<optgroup label="${KIND_LABEL[k]}">` + opts.filter(o => o.kind === k).map(o =>
+      `<option value="${o.id}" ${o.id === selected ? 'selected' : ''}>${esc(o.name)} (${o.unit})</option>`).join('') + '</optgroup>').join('');
+}
+
+function addLine() { lines.push({ component_id: null, quantity: null, unit: null }); renderLines(); }
+
+// quantidade da linha convertida para a unidade de estoque do componente
+function lineQty(l, c) { return c && l.quantity ? toStock(l.quantity, l.unit || c.unit, c) : null; }
+
+// mais de 100 kg/L numa linha quase sempre é grama digitada como kg
+function lineWarn(l, c) {
+  if (!c || !l.quantity || !['kg', 'g', 'L', 'mL'].includes(l.unit)) return '';
+  const base = ['kg', 'g'].includes(l.unit) ? 'kg' : 'L';
+  return convertQty(l.quantity, l.unit, base) > 100 ? `${num(l.quantity)} ${l.unit}? Confira a unidade` : '';
+}
+// perda da linha (se vazia, a perda padrão do item): entra só no custo
+const lineLoss = (l, c) => Math.min(Math.max(l.loss ?? (c ? c.loss_percent || 0 : 0), 0), 95);
+function lineGross(l, c) { const q = lineQty(l, c); return q == null ? null : q / (1 - lineLoss(l, c) / 100); }
+function lineGrossText(l, c) {
+  if (!c || !l.quantity || !lineLoss(l, c)) return '';
+  return `custo +${num((1 / (1 - lineLoss(l, c) / 100) - 1) * 100, 1)}%`;
+}
+function lineCostText(l, c) {
+  const q = lineGross(l, c);
+  return c && c.unit_cost != null && q ? brl(c.unit_cost * q) : '—';
+}
+// atualiza só o custo da linha e o resumo, sem redesenhar a tabela (não perde o foco)
+function updateLine(idx) {
+  const l = lines[idx], c = all.find(i => i.id === l.component_id);
+  const cell = $('lc-' + idx); if (cell) cell.textContent = lineCostText(l, c);
+  const warn = $('lw-' + idx); if (warn) warn.textContent = lineWarn(l, c);
+  const gross = $('lg-' + idx); if (gross) gross.textContent = lineGrossText(l, c);
+  renderPreview();
+}
+
+function pickComponent(idx, id) {
+  const c = all.find(i => i.id === id);
+  lines[idx].component_id = id || null;
+  lines[idx].unit = c ? c.unit : null;
+  renderLines();
+}
+
+function renderLines() {
+  $('recipe-body').innerHTML = lines.length ? lines.map((l, idx) => {
+    const c = all.find(i => i.id === l.component_id);
+    if (c && !itemUnits(c).includes(l.unit)) l.unit = c.unit;
+    return `<tr>
+      <td><select class="form-select form-select-sm" onchange="pickComponent(${idx}, +this.value)">${componentOptions(l.component_id)}</select></td>
+      <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${l.quantity ?? ''}" oninput="lines[${idx}].quantity=parseNum(this.value);updateLine(${idx})">
+        <div class="help text-end" id="lg-${idx}">${lineGrossText(l, c)}</div></td>
+      <td>${c ? unitSelectFor(c, l.unit, `onchange="lines[${idx}].unit=this.value;updateLine(${idx})"`) : ''}
+        <div class="help text-danger" id="lw-${idx}">${lineWarn(l, c)}</div></td>
+      <td><div class="input-group input-group-sm" style="width:82px;margin-left:auto">
+        <input class="form-control text-end px-1" inputmode="decimal" value="${l.loss ?? ''}" placeholder="${c ? num(c.loss_percent || 0, 1) : ''}"
+          title="Vazio = perda padrão do item" oninput="lines[${idx}].loss=parseNum(this.value);updateLine(${idx})"><span class="input-group-text px-1">%</span></div></td>
+      <td class="num" id="lc-${idx}">${lineCostText(l, c)}</td>
+      <td><button class="btn btn-sm btn-outline-danger py-0" onclick="lines.splice(${idx},1);renderLines()"><i class="bi bi-x"></i></button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="text-muted text-center">Nenhum componente</td></tr>';
+  renderPreview();
+}
+
+function renderPreview() {
+  const k = $('f-kind').value;
+  let total = 0, missing = false;
+  for (const l of lines) {
+    const c = all.find(i => i.id === l.component_id);
+    if (!c || !l.quantity) continue;
+    if (c.unit_cost == null || !c.unit_cost) missing = true; else total += c.unit_cost * lineGross(l, c);
+  }
+  let html = `Custo dos componentes: <strong>${brl(total)}</strong>`;
+  if (k === 'producao') {
+    const y = yieldInStock(), it = formItem(), u = it.unit;
+    if (!y) html += ' <span class="text-warning">(informe o rendimento)</span>';
+    else if (u === 'un' && it.portion_size) {
+      // custo por porção e por kg/L pronto
+      const big = ['g', 'kg'].includes(it.portion_unit) ? 'kg' : 'L';
+      const perBig = total / y / convertQty(it.portion_size, it.portion_unit, big);
+      html += ` → <strong>${brl(total / y)}</strong> por porção · <strong>${brl(perBig)}</strong> por ${big} pronto`;
+    } else html += ` → <strong>${unitPrice(total / y, u).replace('/', '</strong> por ')}`;
+  }
+  $('f-priceunit').textContent = ''; $('direct-preview').innerHTML = '';
+  if (k === 'venda') html += pricing(total);
+  else if ($('f-direct').checked) {
+    // vendido direto: custo de 1 unidade de estoque, com a perda (lata amassada, faltando)
+    const loss = Math.min(parseNum($('f-loss').value) || 0, 95), u = $('f-unit').value;
+    const y = yieldInStock();
+    const base = k === 'compra' ? costPerStockUnit() : (y && total ? total / y : editing && editing.unit_cost);
+    const c = base ? base / (1 - loss / 100) : 0;
+    $('f-priceunit').textContent = `(por ${u === 'un' ? 'unidade' : u})`;
+    const sale = `Custo de 1 ${u} vendido: <strong>${brl(c)}</strong>${loss ? ` <span class="help">(com perda ${pct(loss)})</span>` : ''}` + pricing(c);
+    if (k === 'compra') { $('direct-preview').innerHTML = sale; return; }
+    html += '<div>' + sale + '</div>';
+  }
+  if (k === 'compra') return;
+  if (missing) html += '<div class="text-warning small">Algum componente ainda não tem custo.</div>';
+  $('preview').innerHTML = html;
+}
+
+// lucro ↔ preço (o último digitado manda), CMV e preço iFood
+function pricing(total) {
+  let html = '';
+  if (priceDriver === 'markup') {
+    const m = parseNum($('f-markup').value);
+    if (m != null && total > 0) $('f-price').value = dec(total * (1 + m / 100), 2);
+  } else {
+    const pr = parseNum($('f-price').value);
+    $('f-markup').value = pr && total > 0 ? dec((pr / total - 1) * 100, 1) : '';
+  }
+  const p = parseNum($('f-price').value);
+  if (p && total > 0) { const cmv = total / p * 100; html += ` · CMV <strong class="${cmv > 40 ? 'text-danger' : 'text-success'}">${pct(cmv)}</strong>`; }
+  $('f-pricecalc').innerHTML = p ? `Preço iFood: <strong>${brl(p / (1 - fee / 100))}</strong> <span class="help">(taxa ${pct(fee)})</span>` : '';
+  return html;
+}
+
+async function save() {
+  const k = $('f-kind').value;
+  const data = {
+    name: $('f-name').value.trim(), kind: k, unit: k === 'venda' ? 'un' : $('f-unit').value,
+    min_stock: parseNum($('f-min').value) || 0, coverage_days: parseNum($('f-cov').value) ?? 6,
+    yield_quantity: parseNum($('f-yield').value), yield_unit: $('f-yieldunit').value || null,
+    portion_size: formItem().portion_size, portion_unit: formItem().portion_size ? $('f-portionunit').value : null,
+    min_batch: parseNum($('f-batch').value) || 0,
+    pack_size: packSizeInStockUnit(), pack_label: $('f-packlabel').value.trim() || null,
+    selling_price: k === 'venda' || $('f-direct').checked ? parseNum($('f-price').value) : null, notes: $('f-notes').value.trim() || null,
+    active: $('f-active').checked,
+    recipe: k === 'compra' ? [] : lines.filter(l => l.component_id && l.quantity > 0)
+      .map(l => ({ component_id: l.component_id, quantity: l.quantity, unit: l.unit, loss_percent: l.loss ?? null })),
+    loss_percent: parseNum($('f-loss').value) || 0,
+  };
+  // só regrava o custo se o preço foi digitado/alterado (senão mantém a média das compras)
+  const cost = costPerStockUnit();
+  if (k === 'compra' && cost != null && (costDirty || !editing)) data.avg_cost = cost;
+  if (k === 'compra' && $('f-costbasis').value === 'pack' && parseNum($('f-cost').value) != null && !packSizeInStockUnit())
+    return toast('Informe o tamanho da embalagem', 'error');
+  if (!data.name) return toast('Informe o nome', 'error');
+  if (k !== 'venda' && $('f-direct').checked && !data.selling_price) return toast('Informe o preço de venda direta', 'error');
+  if (lines.some(l => (l.component_id && !(l.quantity > 0)) || (!l.component_id && l.quantity))) return toast('Complete ou remova as linhas incompletas da ficha', 'error');
+  await safe(async () => {
+    if (editing) await api.updateItem(editing.id, data); else await api.createItem(data);
+    toast('Salvo'); mItem().hide(); kind = k; await load();
+  });
+}
+
+async function removeItem() {
+  if (!confirm(`Excluir "${editing.name}"?`)) return;
+  await safe(async () => { await api.deleteItem(editing.id); toast('Excluído'); mItem().hide(); await load(); });
+}
+
+async function viewCost(id) {
+  await safe(async () => {
+    const c = await api.itemCost(id);
+    $('cTitle').textContent = 'Custo: ' + c.name;
+    const per = c.kind === 'producao' ? `<tr><td colspan="4" class="text-end">÷ rendimento ${qty(c.yield_quantity, c.unit)}${c.portion_size ? ` (porções de ${num(c.portion_size)} ${c.portion_unit})` : ''} = custo</td><td class="num">${unitPrice(c.unit_cost, c.unit)}</td></tr>` : '';
+    $('cBody').innerHTML = `
+      <table class="table table-sm">
+        <thead class="table-dark"><tr><th>Componente</th><th class="num">Quantidade</th><th class="num">Perda (só custo)</th><th class="num">Custo unit.</th><th class="num">Total</th></tr></thead>
+        <tbody>${c.lines.map(l => `<tr><td>${esc(l.name)} <span class="badge kind-${l.kind}">${KIND_LABEL[l.kind]}</span></td>
+          <td class="num">${qty(l.display_quantity, l.display_unit)}</td>
+          <td class="num">${l.loss_percent ? pct(l.loss_percent) : '—'}</td>
+          <td class="num">${unitPrice(l.unit_cost, l.unit)}</td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
+        <tfoot class="fw-bold"><tr><td colspan="4" class="text-end">Total da ficha</td><td class="num">${brl(c.recipe_cost)}</td></tr>${per}
+          ${c.selling_price ? `<tr><td colspan="4" class="text-end">Venda direta · lucro · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.markup_percent)} · ${pct(c.cmv_percent)}</td></tr>
+          <tr><td colspan="4" class="text-end">Preço iFood (taxa ${pct(fee)})</td><td class="num">${brl(c.selling_price / (1 - fee / 100))}</td></tr>` : ''}
+          ${c.kind === 'producao' && c.avg_cost ? `<tr><td colspan="4" class="text-end">Custo real médio (produções registradas)</td><td class="num">${unitPrice(c.avg_cost, c.unit)}</td></tr>` : ''}</tfoot>
+      </table>
+      ${c.issues.length ? `<div class="alert alert-warning small">${c.issues.map(esc).join('<br>')}</div>` : ''}
+      ${Object.keys(c.suggested_prices).length ? `<div><strong>Preço sugerido pelo lucro sobre o custo:</strong><div class="d-flex flex-wrap gap-2 mt-1">${Object.entries(c.suggested_prices).map(([k, v]) => `<span class="badge bg-secondary fs-6">${k} → ${brl(v)}</span>`).join('')}</div></div>` : ''}`;
+    bootstrap.Modal.getOrCreateInstance($('mCost')).show();
+  });
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+body { background: #f6f7f9; }
+.navbar-brand { font-weight: 700; }
+.card { border: none; border-radius: 12px; }
+.metric { font-size: 1.8rem; font-weight: 700; line-height: 1.1; }
+.table td, .table th { vertical-align: middle; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qty-input { max-width: 110px; margin-left: auto; text-align: right; }
+.kind-compra { background: #0d6efd; }
+.kind-producao { background: #6f42c1; }
+.kind-venda { background: #198754; }
+.help { font-size: .85rem; color: #6c757d; }
+@media print {
+  #nav, .no-print, #toast-container { display: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none !important; border: 1px solid #ccc; }
+}
+
+/* calculadora integrada */
+.calc-btn { position: fixed; z-index: 2100; width: 26px; height: 26px; border-radius: 6px; background: #0d6efd; color: #fff;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: .85rem; opacity: .85; }
+.calc-btn:hover { opacity: 1; }
+.calc-hint { position: fixed; z-index: 2100; background: #212529; color: #fff; font-size: .8rem; padding: 1px 8px; border-radius: 4px; pointer-events: none; }
+.calc-panel { position: fixed; z-index: 2100; width: 260px; background: #fff; border: 1px solid #dee2e6; border-radius: 12px; padding: 10px; }
+.calc-display { background: #f1f3f5; border-radius: 8px; padding: 6px 10px; text-align: right; margin-bottom: 8px; }
+.calc-expr { font-size: .85rem; color: #6c757d; min-height: 1.2em; word-break: break-all; }
+.calc-result { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.calc-keys .btn { padding: 8px 0; font-size: 1.1rem; font-weight: 600; }
+@media print { .calc-btn, .calc-hint, .calc-panel { display: none !important; } }

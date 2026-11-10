@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cozinha — Painel</title>
+<link href="/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="/vendor/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/css/app.css" rel="stylesheet">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container py-4">
+  <h4 class="fw-bold mb-3">Painel</h4>
+  <div class="row g-3 mb-4" id="cards"></div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold text-danger"><i class="bi bi-exclamation-triangle"></i> Estoque negativo ou abaixo da segurança</div>
+        <div class="card-body p-0"><table class="table table-sm mb-0"><tbody id="alerts"></tbody></table></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold"><i class="bi bi-graph-down-arrow"></i> Produções fora do rendimento (±5%)</div>
+        <div class="card-body p-0"><table class="table table-sm mb-0"><tbody id="yields"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4 d-none" id="phone-card">
+    <div class="card-body d-flex flex-wrap align-items-center gap-4">
+      <div id="phone-qr"></div>
+      <div>
+        <div class="fw-semibold mb-1"><i class="bi bi-phone"></i> Abrir no celular</div>
+        <div class="help mb-2">Com o celular no <b>mesmo Wi-Fi</b> deste computador, aponte a câmera para o código ou digite no navegador:</div>
+        <div class="fs-5 fw-bold text-primary" id="phone-url"></div>
+        <div class="help mt-2">O computador precisa estar ligado com a janela preta do programa aberta.</div>
+      </div>
+    </div>
+  </div>
+</main>
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:2000"></div>
+<script src="/vendor/bootstrap.bundle.min.js"></script>
+<script src="/js/api.js"></script>
+<script src="/vendor/qrcode.js"></script>
+<script>
+renderNav('index');
+const $ = id => document.getElementById(id);
+
+function card(href, label, value, cls, sub = '') {
+  return `<div class="col-6 col-lg-3"><a href="${href}" class="text-decoration-none"><div class="card shadow-sm p-3 h-100">
+    <div class="help">${label}</div><div class="metric ${cls}">${value}</div><div class="help">${sub}</div></div></a></div>`;
+}
+
+async function load() {
+  const s = await api.summary();
+  $('cards').innerHTML =
+    card('/vendas.html', 'Vendas hoje', brl(s.sales_today_total), 'text-success', `${num(s.sales_today_count, 1)} pratos`) +
+    card('/reposicao.html', 'Itens para produzir', s.to_produce, s.to_produce ? 'text-primary' : 'text-success', 'ver lista de produção') +
+    card('/reposicao.html', 'Itens para comprar', s.to_buy, s.to_buy ? 'text-primary' : 'text-success', `estimado ${brl(s.buy_total)}`) +
+    card('/estoque.html', 'Estoque negativo', s.negative.length, s.negative.length ? 'text-danger' : 'text-success', s.adjust_loss_value ? `perdas em contagem: ${brl(s.adjust_loss_value)}` : 'falta lançar produção/compra?');
+
+  const alerts = [...s.negative.map(i => [i, 'Negativo', 'danger']), ...s.low.map(i => [i, 'Abaixo da segurança', 'warning'])];
+  $('alerts').innerHTML = alerts.length ? alerts.map(([i, l, c]) => `<tr><td>${esc(i.name)}</td><td class="num">${qty(i.stock, i.unit)}</td><td><span class="badge bg-${c}">${l}</span></td></tr>`).join('')
+    : '<tr><td class="text-center text-success py-3"><i class="bi bi-check-circle"></i> Tudo certo</td></tr>';
+
+  $('yields').innerHTML = s.off_yield.length ? s.off_yield.map(p => `<tr><td class="small text-muted">${dt(p.date)}</td><td>${esc(p.item_name)}</td>
+      <td class="num">${qty(p.output, p.unit)} <span class="help">de ${qty(p.expected, p.unit)}</span></td>
+      <td class="num ${p.deviation_percent < 0 ? 'text-danger fw-bold' : 'text-success'}">${p.deviation_percent > 0 ? '+' : ''}${pct(p.deviation_percent)}</td></tr>`).join('')
+    : '<tr><td class="text-center text-muted py-3">Nenhum desvio relevante</td></tr>';
+}
+
+safe(load);
+
+// endereço para o celular (só faz sentido mostrar no computador)
+request('GET', '/version').then(v => {
+  if (!v.lan_url || location.hostname === v.lan_url.split('//')[1].split(':')[0]) return;
+  $('phone-url').textContent = v.lan_url;
+  const qr = qrcode(0, 'M'); qr.addData(v.lan_url); qr.make();
+  $('phone-qr').innerHTML = qr.createSvgTag(5, 2);
+  $('phone-card').classList.remove('d-none');
+}).catch(() => {});
+</script>
+</body>
+</html>
