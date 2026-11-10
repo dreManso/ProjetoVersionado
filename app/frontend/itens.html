@@ -118,10 +118,10 @@
 
             <div class="row g-2 mb-2 show-stock">
               <div class="col-6">
-                <label class="form-label">Perda no preparo</label>
+                <label class="form-label">Perda (preparo ou defeito)</label>
                 <div class="input-group"><input class="form-control" id="f-loss" inputmode="decimal" placeholder="0">
                   <span class="input-group-text">%</span></div>
-                <div class="help">Casca, limpeza, descongelamento... Vale para todas as receitas (cada receita pode mudar)</div>
+                <div class="help">Casca, limpeza, descongelamento, unidades com defeito ou faltando no pacote... Vale para todas as receitas (cada receita pode mudar)</div>
               </div>
               <div class="col-6 d-flex align-items-center"><div id="f-losscalc" class="fw-semibold text-primary small"></div></div>
             </div>
@@ -334,8 +334,12 @@ function renderCostCalc() {
 function renderLossCalc() {
   const loss = Math.min(parseNum($('f-loss').value) || 0, 95), u = $('f-unit').value;
   if (!loss) { $('f-losscalc').textContent = ''; return; }
-  const one = u === 'g' ? 1000 : u === 'mL' ? 1000 : 1;
-  let txt = `${qtyF(one, u)} → ${qtyF(one * (1 - loss / 100), u)} aproveitáveis`;
+  // base do exemplo: a embalagem de compra (24 un), ou 1 kg/1 L, ou 100 un
+  const pack = $('f-kind').value === 'compra' ? packSizeInStockUnit() : null;
+  const one = pack || (u === 'g' || u === 'mL' ? 1000 : u === 'un' ? 100 : 1);
+  const label = pack ? `1 ${$('f-packlabel').value.trim() || 'embalagem'} (${qtyF(one, u)})` : qtyF(one, u);
+  const left = one * (1 - loss / 100);
+  let txt = `${label} → ${u === 'un' ? num(left, 2) + ' un' : qtyF(left, u)} aproveitáveis`;
   const c = $('f-kind').value === 'compra' ? costPerStockUnit() : (editing && editing.unit_cost);
   if (c) txt += ` · ${unitPrice(c / (1 - loss / 100), u).replace('/', ' por ')} aproveitável`;
   $('f-losscalc').textContent = txt;
@@ -411,7 +415,8 @@ const lineLoss = (l, c) => Math.min(Math.max(l.loss ?? (c ? c.loss_percent || 0 
 function lineGross(l, c) { const q = lineQty(l, c); return q == null ? null : q / (1 - lineLoss(l, c) / 100); }
 function lineGrossText(l, c) {
   if (!c || !l.quantity || !lineLoss(l, c)) return '';
-  return `bruto: ${qtyF(lineGross(l, c), c.unit)}`;
+  const g = lineGross(l, c);
+  return `bruto: ${c.unit === 'un' ? num(g, 2) + ' un' : qtyF(g, c.unit)}`;
 }
 function lineCostText(l, c) {
   const q = lineGross(l, c);
@@ -521,7 +526,7 @@ async function viewCost(id) {
         <thead class="table-dark"><tr><th>Componente</th><th class="num">Qtd. limpa</th><th class="num">Perda → bruto</th><th class="num">Custo unit.</th><th class="num">Total</th></tr></thead>
         <tbody>${c.lines.map(l => `<tr><td>${esc(l.name)} <span class="badge kind-${l.kind}">${KIND_LABEL[l.kind]}</span></td>
           <td class="num">${qty(l.display_quantity, l.display_unit)}</td>
-          <td class="num">${l.loss_percent ? `${pct(l.loss_percent)} → ${qtyF(l.gross_quantity, l.unit)}` : '—'}</td>
+          <td class="num">${l.loss_percent ? `${pct(l.loss_percent)} → ${l.unit === 'un' ? num(l.gross_quantity, 2) + ' un' : qtyF(l.gross_quantity, l.unit)}` : '—'}</td>
           <td class="num">${unitPrice(l.unit_cost, l.unit)}</td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
         <tfoot class="fw-bold"><tr><td colspan="4" class="text-end">Total da ficha</td><td class="num">${brl(c.recipe_cost)}</td></tr>${per}
           ${c.selling_price ? `<tr><td colspan="4" class="text-end">Preço de venda · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.cmv_percent)}</td></tr>` : ''}

@@ -2,6 +2,11 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.5.1 — 10/11/2026
+- Campo renomeado para "Perda (preparo ou defeito)": serve também para unidades com defeito ou faltando no pacote (ex.: embalagens).
+- Exemplo da perda usa a embalagem de compra: "1 pacote (24 un) → 23,04 un aproveitáveis".
+- Quantidade bruta de itens em unidades mostrada com 2 casas (1,04 un em vez de 1 un).
+
 ## 2.5.0 — 10/11/2026
 - Perda no preparo (fator de correção): cada item pode ter uma perda padrão (ex.: cebola 10% de casca, peito congelado 20% no descongelamento).
 - Na ficha técnica, a quantidade é a LIMPA; o app calcula o bruto que sai do estoque e o custo real. Cada receita pode ter uma perda diferente para o item.
