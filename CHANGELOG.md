@@ -2,6 +2,11 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.7.0 — 10/11/2026
+- Calculadora integrada em todos os campos de número:
+  - dá para digitar a conta direto no campo (ex.: 4700+2000, 3*500, 21,60/24, 10%); o resultado aparece embaixo e entra no campo ao sair dele ou apertar Enter;
+  - botão de calculadora ao lado do campo, com teclado (+ − × ÷, parênteses, %) e botão "Usar".
+
 ## 2.6.0 — 10/11/2026
 - Pratos: "Lucro sobre o custo %" ligado ao "Preço venda direta". Digite um e o outro é calculado.
 - Preço iFood calculado automaticamente: venda direta ÷ (1 − taxa do iFood).
