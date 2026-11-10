@@ -205,13 +205,13 @@ function render() {
         <button class="btn btn-sm btn-outline-primary" title="Editar" onclick="openEdit(${i.id})"><i class="bi bi-pencil"></i></button></td>`;
     const stock = `<td class="num ${i.stock < 0 ? 'text-danger fw-bold' : ''}">${qty(i.stock, i.unit)}</td>`;
     if (kind === 'compra') return `<tr>${name}${stock}
-        <td class="num">${i.avg_cost ? brl(i.avg_cost) + '/' + i.unit : '<span class="text-warning">sem custo</span>'}</td>
+        <td class="num">${i.avg_cost ? unitPrice(i.avg_cost, i.unit) : '<span class="text-warning">sem custo</span>'}</td>
         <td class="num">${i.pack_size ? qty(i.pack_size, i.unit) + ' ' + esc(i.pack_label || '') : '—'}</td>
         <td class="num">${num(i.coverage_days)} dias</td>${actions}</tr>`;
     if (kind === 'producao') return `<tr>${name}${stock}
         <td class="num">${i.yield_quantity ? qty(i.yield_quantity, i.unit) : '<span class="text-warning">definir</span>'}</td>
-        <td class="num">${i.unit_cost != null ? brl(i.unit_cost) + '/' + i.unit : '—'}</td>
-        <td class="num">${i.avg_cost ? brl(i.avg_cost) + '/' + i.unit : '—'}</td>
+        <td class="num">${i.unit_cost != null ? unitPrice(i.unit_cost, i.unit) : '—'}</td>
+        <td class="num">${i.avg_cost ? unitPrice(i.avg_cost, i.unit) : '—'}</td>
         <td class="num">${num(i.coverage_days)} dias${i.min_batch ? ' / ' + qty(i.min_batch, i.unit) : ''}</td>${actions}</tr>`;
     return `<tr>${name}
         <td class="num">${brl(i.unit_cost)}</td><td class="num">${brl(i.selling_price)}</td>
@@ -268,7 +268,7 @@ function costPerStockUnit() {
 }
 function renderCostCalc() {
   const c = costPerStockUnit(), u = $('f-unit').value;
-  $('f-costcalc').textContent = c == null ? '' : `= ${brl(c)} por ${u}`;
+  $('f-costcalc').textContent = c == null ? '' : `= ${unitPrice(c, u).replace('/', ' por ')}`;
 }
 $('f-kind').onchange = toggleKind;
 $('f-unit').onchange = updateUnits;
@@ -305,10 +305,8 @@ function openEdit(id) {
   setField('f-yield', i.yield_quantity); setField('f-batch', i.min_batch); setField('f-cov', i.coverage_days);
   setField('f-min', i.min_stock); setField('f-price', i.selling_price); setField('f-notes', i.notes);
   $('f-active').checked = i.active;
-  lines = i.recipe.map(r => {
-    const u = friendlyUnit(r.quantity, r.component_unit);
-    return { component_id: r.component_id, quantity: convertQty(r.quantity, r.component_unit, u), unit: u };
-  });
+  // reabre na unidade em que foi digitada (1500 g continua 1500 g)
+  lines = i.recipe.map(r => ({ component_id: r.component_id, quantity: r.display_quantity, unit: r.display_unit }));
   $('btn-del').classList.remove('d-none');
   toggleKind(); mItem().show();
 }
@@ -326,6 +324,12 @@ function addLine() { lines.push({ component_id: null, quantity: null, unit: null
 // quantidade da linha convertida para a unidade de estoque do componente
 function lineQty(l, c) { return c && l.quantity ? convertQty(l.quantity, l.unit || c.unit, c.unit) : null; }
 
+// mais de 100 kg/L numa linha quase sempre é grama digitada como kg
+function lineWarn(l, c) {
+  if (!c || !l.quantity || !['kg', 'g', 'L', 'mL'].includes(l.unit)) return '';
+  const base = ['kg', 'g'].includes(l.unit) ? 'kg' : 'L';
+  return convertQty(l.quantity, l.unit, base) > 100 ? `${num(l.quantity)} ${l.unit}? Confira a unidade` : '';
+}
 function lineCostText(l, c) {
   const q = lineQty(l, c);
   return c && c.unit_cost != null && q ? brl(c.unit_cost * q) : '—';
@@ -334,6 +338,7 @@ function lineCostText(l, c) {
 function updateLine(idx) {
   const l = lines[idx], c = all.find(i => i.id === l.component_id);
   const cell = $('lc-' + idx); if (cell) cell.textContent = lineCostText(l, c);
+  const warn = $('lw-' + idx); if (warn) warn.textContent = lineWarn(l, c);
   renderPreview();
 }
 
@@ -351,7 +356,8 @@ function renderLines() {
     return `<tr>
       <td><select class="form-select form-select-sm" onchange="pickComponent(${idx}, +this.value)">${componentOptions(l.component_id)}</select></td>
       <td><input class="form-control form-control-sm qty-input" inputmode="decimal" value="${l.quantity ?? ''}" oninput="lines[${idx}].quantity=parseNum(this.value);updateLine(${idx})"></td>
-      <td>${c ? unitSelect(c.unit, l.unit, `onchange="lines[${idx}].unit=this.value;updateLine(${idx})"`) : ''}</td>
+      <td>${c ? unitSelect(c.unit, l.unit, `onchange="lines[${idx}].unit=this.value;updateLine(${idx})"`) : ''}
+        <div class="help text-danger" id="lw-${idx}">${lineWarn(l, c)}</div></td>
       <td class="num" id="lc-${idx}">${lineCostText(l, c)}</td>
       <td><button class="btn btn-sm btn-outline-danger py-0" onclick="lines.splice(${idx},1);renderLines()"><i class="bi bi-x"></i></button></td></tr>`;
   }).join('') : '<tr><td colspan="5" class="text-muted text-center">Nenhum componente</td></tr>';
@@ -369,7 +375,7 @@ function renderPreview() {
   let html = `Custo dos componentes: <strong>${brl(total)}</strong>`;
   if (k === 'producao') {
     const y = parseNum($('f-yield').value), u = $('f-unit').value;
-    html += y ? ` → <strong>${brl(total / y)}</strong> por ${u}` : ' <span class="text-warning">(informe o rendimento)</span>';
+    html += y ? ` → <strong>${unitPrice(total / y, u).replace('/', '</strong> por ')}` : ' <span class="text-warning">(informe o rendimento)</span>';
   } else if (k === 'venda') {
     const p = parseNum($('f-price').value);
     if (p) { const cmv = total / p * 100; html += ` · CMV <strong class="${cmv > 40 ? 'text-danger' : 'text-success'}">${pct(cmv)}</strong>`; }
@@ -412,15 +418,15 @@ async function viewCost(id) {
   await safe(async () => {
     const c = await api.itemCost(id);
     $('cTitle').textContent = 'Custo: ' + c.name;
-    const per = c.kind === 'producao' ? `<tr><td colspan="4" class="text-end">÷ rendimento ${qty(c.yield_quantity, c.unit)} = custo por ${c.unit}</td><td class="num">${brl(c.unit_cost)}</td></tr>` : '';
+    const per = c.kind === 'producao' ? `<tr><td colspan="4" class="text-end">÷ rendimento ${qty(c.yield_quantity, c.unit)} = custo</td><td class="num">${unitPrice(c.unit_cost, c.unit)}</td></tr>` : '';
     $('cBody').innerHTML = `
       <table class="table table-sm">
         <thead class="table-dark"><tr><th>Componente</th><th class="num">Qtd</th><th class="num">Custo unit.</th><th></th><th class="num">Total</th></tr></thead>
         <tbody>${c.lines.map(l => `<tr><td>${esc(l.name)} <span class="badge kind-${l.kind}">${KIND_LABEL[l.kind]}</span></td>
-          <td class="num">${qtyF(l.quantity, l.unit)}</td><td class="num">${l.unit_cost != null ? brl(l.unit_cost) + '/' + l.unit : '—'}</td><td></td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
+          <td class="num">${qty(l.display_quantity, l.display_unit)}</td><td class="num">${unitPrice(l.unit_cost, l.unit)}</td><td></td><td class="num">${brl(l.total)}</td></tr>`).join('')}</tbody>
         <tfoot class="fw-bold"><tr><td colspan="4" class="text-end">Total da ficha</td><td class="num">${brl(c.recipe_cost)}</td></tr>${per}
           ${c.selling_price ? `<tr><td colspan="4" class="text-end">Preço de venda · CMV</td><td class="num">${brl(c.selling_price)} · ${pct(c.cmv_percent)}</td></tr>` : ''}
-          ${c.kind === 'producao' && c.avg_cost ? `<tr><td colspan="4" class="text-end">Custo real médio (produções registradas)</td><td class="num">${brl(c.avg_cost)}</td></tr>` : ''}</tfoot>
+          ${c.kind === 'producao' && c.avg_cost ? `<tr><td colspan="4" class="text-end">Custo real médio (produções registradas)</td><td class="num">${unitPrice(c.avg_cost, c.unit)}</td></tr>` : ''}</tfoot>
       </table>
       ${c.issues.length ? `<div class="alert alert-warning small">${c.issues.map(esc).join('<br>')}</div>` : ''}
       ${Object.keys(c.suggested_prices).length ? `<div><strong>Preço sugerido por CMV desejado:</strong><div class="d-flex flex-wrap gap-2 mt-1">${Object.entries(c.suggested_prices).map(([k, v]) => `<span class="badge bg-secondary fs-6">${k} → ${brl(v)}</span>`).join('')}</div></div>` : ''}`;

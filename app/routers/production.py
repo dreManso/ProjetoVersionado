@@ -33,7 +33,7 @@ def _serialize(p: Production) -> dict:
         "expected_output": None if p.expected_output is None else round(p.expected_output, 3),
         "deviation_percent": deviation,
         "input_cost": round(p.input_cost, 2),
-        "unit_cost": round(p.input_cost / p.output_quantity, 4),
+        "unit_cost": round(p.input_cost / p.output_quantity, 6),
         "date": p.date,
         "notes": p.notes,
     }

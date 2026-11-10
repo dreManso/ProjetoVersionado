@@ -51,6 +51,9 @@ const convertQty = (q, from, to) => q == null ? null : +(q * UNIT_FACTOR[from] /
 // Unidade mais fácil de ler: 0,3 kg → g; 0,15 L → mL
 const friendlyUnit = (q, unit) => (unit === 'kg' && q > 0 && q < 1) ? 'g' : (unit === 'L' && q > 0 && q < 1) ? 'mL' : unit;
 const qtyF = (q, unit) => { if (q == null) return '—'; const u = friendlyUnit(Math.abs(q), unit); return qty(convertQty(q, unit, u), u); };
+// Preço por unidade legível: itens em g/mL mostram o preço por kg/L (R$ 0,0113/g → R$ 11,31/kg)
+const unitPrice = (v, unit) => v == null ? '—'
+    : unit === 'g' ? `${brl(v * 1000)}/kg` : unit === 'mL' ? `${brl(v * 1000)}/L` : `${brl(v)}/${unit}`;
 const unitSelect =(base, selected, attrs = '') =>
     `<select class="form-select form-select-sm" style="width:auto" ${attrs}>${(UNIT_OPTIONS[base] || [base]).map(u => `<option ${u === selected ? 'selected' : ''}>${u}</option>`).join('')}</select>`;
 

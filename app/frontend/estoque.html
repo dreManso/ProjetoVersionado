@@ -146,9 +146,9 @@ function buyQty() {
 function previewBuy() {
   const q = buyQty(), t = parseNum($('b-total').value);
   if (!q || t == null) { $('b-preview').textContent = ''; return; }
-  let txt = `= ${qty(q, sel.unit)} a ${brl(t / q)} por ${sel.unit}`;
+  let txt = `= ${qtyF(q, sel.unit)} a ${unitPrice(t / q, sel.unit)}`;
   if (sel.pack_size) txt += ` (${brl(t / q * sel.pack_size)} por ${sel.pack_label || 'embalagem'})`;
-  if (sel.avg_cost) txt += ` · média atual ${brl(sel.avg_cost)}/${sel.unit}`;
+  if (sel.avg_cost) txt += ` · média atual ${unitPrice(sel.avg_cost, sel.unit)}`;
   $('b-preview').textContent = txt;
 }
 async function saveBuy() {
@@ -156,7 +156,7 @@ async function saveBuy() {
   if (!(q > 0) || t == null) return toast('Informe quantidade e valor', 'error');
   await safe(async () => {
     const r = await api.purchase({ item_id: sel.id, quantity: q, total_price: t, day: $('b-day').value || null, notes: $('b-notes').value.trim() || null });
-    toast(`Entrada registrada. Novo custo médio: ${brl(r.avg_cost)}/${sel.unit}`);
+    toast(`Entrada registrada. Novo custo médio: ${unitPrice(r.avg_cost, sel.unit)}`);
     bootstrap.Modal.getOrCreateInstance($('mBuy')).hide(); load();
   });
 }

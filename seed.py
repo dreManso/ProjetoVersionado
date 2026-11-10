@@ -5,7 +5,7 @@ Só roda com o banco vazio. Para recomeçar, apague o arquivo cozinha.db.
 """
 from datetime import date, timedelta
 
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal, init_db
 from app.models import Item
 from app.routers.items import create_item
 from app.routers.production import register_production
@@ -13,7 +13,7 @@ from app.routers.sales import register_sales
 from app.routers.stock import purchase
 from app.schemas import ItemIn, ProductionIn, PurchaseIn, SalesIn
 
-Base.metadata.create_all(bind=engine)
+init_db()
 db = SessionLocal()
 if db.query(Item).count():
     raise SystemExit("O banco já tem itens. Apague cozinha.db para carregar o exemplo.")

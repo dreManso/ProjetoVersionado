@@ -23,7 +23,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal, init_db
 from app.models import Item
 from app.routers.items import create_item
 from app.routers.stock import adjust
@@ -79,7 +79,7 @@ def main():
     except sqlite3.DatabaseError as e:
         raise SystemExit(f"'{origem}' não parece ser o banco da primeira versão ({e}).")
 
-    Base.metadata.create_all(bind=engine)
+    init_db()
     db = SessionLocal()
     if db.query(Item).count():
         raise SystemExit("O cozinha.db já tem itens (talvez o exemplo do seed.py). "

@@ -57,7 +57,8 @@ class RecipeLine(Base):
     id = Column(Integer, primary_key=True)
     parent_id = Column(Integer, ForeignKey("items.id"), nullable=False)
     component_id = Column(Integer, ForeignKey("items.id"), nullable=False)
-    quantity = Column(Float, nullable=False)  # na unidade do componente
+    quantity = Column(Float, nullable=False)  # sempre na unidade de estoque do componente
+    unit = Column(String(5), nullable=True)   # unidade em que foi digitada (só para exibir: 1500 g)
     position = Column(Integer, nullable=False, default=0)
 
     parent = relationship("Item", foreign_keys=[parent_id], back_populates="recipe")

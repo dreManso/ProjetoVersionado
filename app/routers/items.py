@@ -12,6 +12,17 @@ from ..services import convert_unit, cost_breakdown, creates_cycle, unit_cost
 router = APIRouter()
 
 
+def display_line(line: RecipeLine) -> dict:
+    """Quantidade na unidade em que foi digitada (1500 g), se ainda for compatível."""
+    comp_unit = line.component.unit
+    unit = line.unit or comp_unit
+    try:
+        qty = convert_unit(line.quantity, comp_unit, unit)
+    except ValueError:
+        unit, qty = comp_unit, line.quantity
+    return {"display_quantity": round(qty, 6), "display_unit": unit}
+
+
 def serialize(item: Item, memo=None) -> dict:
     cost, issues = unit_cost(item, {} if memo is None else memo)
     data = {
@@ -36,10 +47,11 @@ def serialize(item: Item, memo=None) -> dict:
                 "component_name": l.component.name,
                 "component_unit": l.component.unit,
                 "quantity": l.quantity,
+                **display_line(l),
             }
             for l in item.recipe
         ],
-        "unit_cost": None if cost is None else round(cost, 4),
+        "unit_cost": None if cost is None else round(cost, 6),
         "cost_issues": issues,
         "cmv_percent": None,
     }
@@ -95,7 +107,7 @@ def _apply(db: Session, item: Item, data: ItemIn):
     if data.avg_cost is not None:
         item.avg_cost = data.avg_cost
     item.recipe = [
-        RecipeLine(component_id=l.component_id, quantity=q, position=i)
+        RecipeLine(component_id=l.component_id, quantity=q, unit=l.unit, position=i)
         for i, (l, q) in enumerate(zip(data.recipe, quantities))
     ]
 

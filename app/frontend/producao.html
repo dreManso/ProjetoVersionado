@@ -141,7 +141,7 @@ async function save() {
   if (!ins.length) return toast('Informe o que entrou', 'error');
   await safe(async () => {
     const p = await api.produce({ item_id: current.id, output_quantity: out, inputs: ins, day: $('p-day').value || null, notes: $('p-notes').value.trim() || null });
-    toast(`Produção registrada: ${qty(p.output_quantity, p.unit)} de ${p.item_name} a ${brl(p.unit_cost)}/${p.unit}`);
+    toast(`Produção registrada: ${qty(p.output_quantity, p.unit)} de ${p.item_name} a ${unitPrice(p.unit_cost, p.unit)}`);
     if (p.deviation_percent != null && p.deviation_percent <= -5) toast(`Rendimento ${pct(p.deviation_percent)} abaixo da ficha. Vale conferir.`, 'warn');
     $('p-item').value = ''; $('p-notes').value = ''; $('p-batches').value = 1; select();
     await load();

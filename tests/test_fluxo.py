@@ -205,3 +205,33 @@ def test_compra_em_gramas_e_em_pacotes():
     m = get(macarrao["id"])
     assert m["stock"] == pytest.approx(5)
     assert m["avg_cost"] == pytest.approx(11.8)
+
+
+def test_ficha_lembra_unidade_digitada():
+    tomate = item(name="Tomate", kind="compra", unit="kg", avg_cost=10.9)
+    base = item(name="Base molho", kind="producao", unit="g", yield_quantity=3000,
+                recipe=[{"component_id": tomate["id"], "quantity": 1500, "unit": "g"}])
+    linha = base["recipe"][0]
+    assert linha["quantity"] == pytest.approx(1.5)          # gravado em kg
+    assert (linha["display_quantity"], linha["display_unit"]) == (1500, "g")  # exibido como digitado
+    assert base["unit_cost"] == pytest.approx(16.35 / 3000, rel=1e-4)  # custo por g com precisão
+    detalhe = client.get(f"/api/items/{base['id']}/cost").json()["lines"][0]
+    assert (detalhe["display_quantity"], detalhe["display_unit"]) == (1500, "g")
+
+
+def test_banco_antigo_sem_coluna_unit_e_migrado(tmp_path):
+    import sqlite3
+    from sqlalchemy import create_engine
+    import app.database as database
+    db_file = tmp_path / "antigo.db"
+    con = sqlite3.connect(db_file)
+    con.execute("CREATE TABLE recipe_lines (id INTEGER PRIMARY KEY, parent_id INTEGER, component_id INTEGER, quantity FLOAT, position INTEGER)")
+    con.commit(); con.close()
+    original = database.engine
+    database.engine = create_engine(f"sqlite:///{db_file}")
+    try:
+        database.init_db()
+    finally:
+        database.engine.dispose(); database.engine = original
+    cols = [r[1] for r in sqlite3.connect(db_file).execute("PRAGMA table_info(recipe_lines)")]
+    assert "unit" in cols

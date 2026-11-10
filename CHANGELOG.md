@@ -2,6 +2,12 @@
 
 A versão aparece no menu do app, ao lado de "Cozinha".
 
+## 2.3.1 — 10/11/2026
+- Ficha técnica lembra a unidade digitada: 1500 g continua aparecendo como 1500 g ao reabrir.
+- Itens controlados em g ou mL mostram o preço por kg ou L (R$ 11,31/kg em vez de R$ 0,01/g).
+- Aviso na ficha quando uma linha passa de 100 kg ou 100 L (provável grama digitada como kg).
+- Se o programa já estiver aberto em outra janela, ele não atualiza por cima: avisa para fechar as janelas e abrir de novo (evita misturar versões).
+
 ## 2.3.0 — 10/11/2026
 - Preço por embalagem: informe o preço do pacote (ex.: R$ 5,90 o pacote de 500 g) e o app calcula o preço por kg sozinho.
 - Embalagem pode ser cadastrada em g, kg, mL ou L (ex.: 500 g).

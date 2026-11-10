@@ -123,12 +123,19 @@ def cost_breakdown(item: Item) -> dict:
     lines = []
     for line in item.recipe:
         c, _ = unit_cost(line.component, memo)
+        shown_unit = line.unit or line.component.unit
+        try:
+            shown_qty = convert_unit(line.quantity, line.component.unit, shown_unit)
+        except ValueError:
+            shown_unit, shown_qty = line.component.unit, line.quantity
         lines.append({
             "name": line.component.name,
             "kind": line.component.kind,
             "quantity": line.quantity,
             "unit": line.component.unit,
-            "unit_cost": None if c is None else round(c, 4),
+            "display_quantity": round(shown_qty, 6),
+            "display_unit": shown_unit,
+            "unit_cost": None if c is None else round(c, 6),
             "total": None if c is None else round(c * line.quantity, 4),
         })
     suggested = {}
@@ -143,7 +150,7 @@ def cost_breakdown(item: Item) -> dict:
         "unit": item.unit,
         "yield_quantity": item.yield_quantity,
         "recipe_cost": round(sum(l["total"] or 0 for l in lines), 4),
-        "unit_cost": None if cost is None else round(cost, 4),
+        "unit_cost": None if cost is None else round(cost, 6),
         "avg_cost": item.avg_cost,
         "selling_price": item.selling_price,
         "cmv_percent": round(cost / item.selling_price * 100, 1)

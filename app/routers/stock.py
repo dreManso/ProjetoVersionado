@@ -33,8 +33,8 @@ def purchase(data: PurchaseIn, db: Session = Depends(get_db)):
     add_movement(db, item, quantity, "compra", unit_cost=unit_price,
                  when=to_datetime(data.day), notes=data.notes)
     db.commit()
-    return {"item_id": item.id, "stock": item.stock, "avg_cost": round(item.avg_cost, 4),
-            "unit_price": round(unit_price, 4)}
+    return {"item_id": item.id, "stock": item.stock, "avg_cost": round(item.avg_cost, 6),
+            "unit_price": round(unit_price, 6)}
 
 
 @router.post("/adjust")

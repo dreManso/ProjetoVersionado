@@ -4,11 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .database import Base, engine
+from .database import init_db
 from .routers import items, production, reports, sales, stock
 from .version import __version__
 
-Base.metadata.create_all(bind=engine)
+init_db()
 
 app = FastAPI(title="Controle de Cozinha", version=__version__)
 
